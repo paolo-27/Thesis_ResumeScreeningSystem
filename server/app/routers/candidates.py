@@ -1,3 +1,4 @@
+import io
 import mimetypes
 import os
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form
@@ -8,7 +9,7 @@ from datetime import datetime
 from .. import models, schemas
 from ..database import get_db
 from ..services.file_service import extract_text_from_file, save_resume_bytes, UPLOADS_DIR
-from ..services.ml_service import predict_resume_tier
+from ..services.ml_service import predict_resume_tier, get_candidate_insights
 
 router = APIRouter(
     prefix="/api",
@@ -116,6 +117,63 @@ def get_candidate_resume(candidate_id: str, db: Session = Depends(get_db)):
         filename=original_filename,
         headers={"Content-Disposition": f'inline; filename="{original_filename}"'},
     )
+
+
+@router.get("/candidates/{candidate_id}/insights")
+def get_insights(candidate_id: str, db: Session = Depends(get_db)):
+    """Computes and returns SHAP feature importance + raw similarity scores for a candidate."""
+    import PyPDF2
+    from docx import Document as DocxDocument
+
+    db_candidate = db.query(models.Candidate).filter(models.Candidate.id == candidate_id).first()
+    if not db_candidate:
+        raise HTTPException(status_code=404, detail="Candidate not found")
+    if not db_candidate.resume_url:
+        raise HTTPException(status_code=404, detail="No resume file found for this candidate")
+
+    # Resolve file path
+    stored_filename = os.path.basename(db_candidate.resume_url)
+    file_path = UPLOADS_DIR / stored_filename
+    if not file_path.exists():
+        raise HTTPException(status_code=404, detail="Resume file not found on disk")
+
+    # Extract resume text directly from disk (no UploadFile needed)
+    resume_bytes = file_path.read_bytes()
+    resume_text = ""
+    fname = stored_filename.lower()
+    if fname.endswith(".pdf"):
+        reader = PyPDF2.PdfReader(io.BytesIO(resume_bytes))
+        for page in reader.pages:
+            t = page.extract_text()
+            if t:
+                resume_text += t + "\n"
+    elif fname.endswith(".docx"):
+        doc = DocxDocument(io.BytesIO(resume_bytes))
+        for para in doc.paragraphs:
+            if para.text:
+                resume_text += para.text + "\n"
+    else:
+        try:
+            resume_text = resume_bytes.decode("utf-8")
+        except UnicodeDecodeError:
+            pass
+    resume_text = resume_text.strip()
+
+    # Fetch job description from DB
+    job_description = ""
+    if db_candidate.applied_job_id:
+        job = db.query(models.JobPosting).filter(
+            models.JobPosting.id == db_candidate.applied_job_id
+        ).first()
+        if job:
+            job_description = ((job.description or "") + " " + (job.requirements or "")).strip()
+
+    try:
+        result = get_candidate_insights(resume_text, job_description)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Insights computation failed: {str(e)}")
+
+    return result
 
 @router.patch("/candidates/{candidate_id}", response_model=schemas.Candidate)
 def update_candidate(candidate_id: str, candidate_update: schemas.CandidateUpdate, db: Session = Depends(get_db)):
