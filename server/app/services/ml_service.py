@@ -1,6 +1,7 @@
 import os
 import joblib
 import numpy as np
+import shap
 from xgboost import XGBClassifier
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
@@ -36,6 +37,15 @@ try:
 except Exception as e:
     print(f"[ml_service] Error loading models: {e}")
     models_loaded = False
+
+# SHAP explainer — lazily initialised on first use and cached
+_shap_explainer = None
+
+def _get_shap_explainer():
+    global _shap_explainer
+    if _shap_explainer is None and models_loaded:
+        _shap_explainer = shap.TreeExplainer(classifier)
+    return _shap_explainer
 
 
 # ---------------------------------------------------------------------------
@@ -117,3 +127,73 @@ def predict_resume_tier(resume_text: str, job_description: str) -> tuple[float, 
     except Exception as e:
         print(f"[ml_service] Prediction error: {e}")
         return 0.0, "Red"
+
+
+# ---------------------------------------------------------------------------
+# Insights — SHAP values + raw similarity scores
+#
+# Feature vector layout (770 dims):
+#   [0:384]   SBERT embedding of the job description
+#   [384:768] SBERT embedding of the resume
+#   [768]     TF-IDF cosine similarity
+#   [769]     SBERT cosine similarity
+# ---------------------------------------------------------------------------
+
+_FEATURE_GROUPS = [
+    {"label": "Job Description Embedding", "start": 0,   "end": 384},
+    {"label": "Resume Embedding",          "start": 384, "end": 768},
+    {"label": "TF-IDF Similarity",         "start": 768, "end": 769},
+    {"label": "SBERT Similarity",          "start": 769, "end": 770},
+]
+
+
+def get_candidate_insights(resume_text: str, job_description: str) -> dict:
+    """
+    Returns SHAP-based feature importance and raw similarity scores.
+
+    Returns:
+        {
+          "shap_values": [
+              {"label": str, "value": float},  # summed |shap| per group
+              ...
+          ],
+          "tfidf_sim": float,   # raw TF-IDF cosine similarity [0-1]
+          "sbert_sim": float,   # raw SBERT cosine similarity [0-1]
+        }
+    """
+    if not models_loaded:
+        return {"shap_values": [], "tfidf_sim": 0.0, "sbert_sim": 0.0}
+
+    effective_job = job_description.strip() if job_description and job_description.strip() else "job position"
+
+    feature_vec = build_feature_vector(resume_text, effective_job)  # shape (1, 770)
+
+    # Extract raw scalar similarity scores from the feature vector
+    tfidf_sim = float(feature_vec[0, 768])
+    sbert_sim  = float(feature_vec[0, 769])
+
+    # Compute SHAP values: shape (1, 770) for class-1 (positive / shortlist)
+    explainer = _get_shap_explainer()
+    shap_vals = explainer.shap_values(feature_vec)   # ndarray (1, 770) or list
+
+    # shap_values() may return a list [class0_vals, class1_vals] for binary classifiers
+    if isinstance(shap_vals, list):
+        shap_array = np.array(shap_vals[1])[0]  # class-1 SHAP, shape (770,)
+    else:
+        shap_array = np.array(shap_vals)[0]      # shape (770,)
+
+    # Aggregate into human-readable groups (sum of absolute SHAP contributions)
+    grouped = []
+    for grp in _FEATURE_GROUPS:
+        segment = shap_array[grp["start"]:grp["end"]]
+        grouped.append({
+            "label": grp["label"],
+            "value": round(float(np.sum(np.abs(segment))), 6),
+        })
+
+    print(f"[ml_service] Insights computed | tfidf={tfidf_sim:.4f} sbert={sbert_sim:.4f} shap_groups={grouped}")
+    return {
+        "shap_values": grouped,
+        "tfidf_sim": round(tfidf_sim, 6),
+        "sbert_sim": round(sbert_sim, 6),
+    }
