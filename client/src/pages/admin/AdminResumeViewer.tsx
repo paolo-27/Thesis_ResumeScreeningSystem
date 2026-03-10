@@ -3,6 +3,15 @@ import { Document, Page, pdfjs } from 'react-pdf';
 import 'react-pdf/dist/Page/AnnotationLayer.css';
 import 'react-pdf/dist/Page/TextLayer.css';
 import { renderAsync } from 'docx-preview';
+import {
+    BarChart,
+    Bar,
+    XAxis,
+    YAxis,
+    Tooltip,
+    ResponsiveContainer,
+    Cell,
+} from 'recharts';
 import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Badge } from '../../components/ui/badge';
@@ -14,13 +23,14 @@ import {
     Calendar,
     ThumbsUp,
     ThumbsDown,
-    Share2,
     ChevronLeft,
     ChevronRight,
     ZoomIn,
     ZoomOut,
     Loader2,
     AlertCircle,
+    BarChart2,
+    X,
 } from 'lucide-react';
 import type { Candidate } from '../../types';
 import api from '../../lib/axios';
@@ -35,6 +45,17 @@ interface AdminResumeViewerProps {
     candidateId: string;
     onBack: () => void;
     onAction?: (action: 'shortlist' | 'reject') => void;
+}
+
+interface InsightShapValue {
+    label: string;
+    value: number;
+}
+
+interface InsightsData {
+    shap_values: InsightShapValue[];
+    tfidf_sim: number;
+    sbert_sim: number;
 }
 
 // ─── PDF viewer sub-component ────────────────────────────────────────────────
@@ -131,6 +152,163 @@ function PdfViewer({ url }: { url: string }) {
     );
 }
 
+// ─── Insights Modal ───────────────────────────────────────────────────────────
+const CHART_COLORS = ['#059669', '#0ea5e9', '#f59e0b', '#8b5cf6'];
+
+function InsightsModal({
+    data,
+    loading,
+    error,
+    onClose,
+}: {
+    data: InsightsData | null;
+    loading: boolean;
+    error: string | null;
+    onClose: () => void;
+}) {
+    // Close on Escape key
+    useEffect(() => {
+        const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', handler);
+        return () => window.removeEventListener('keydown', handler);
+    }, [onClose]);
+
+    return (
+        <div
+            className="fixed inset-0 z-50 flex items-center justify-center"
+            style={{ backdropFilter: 'blur(4px)', backgroundColor: 'rgba(0,0,0,0.55)' }}
+            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+        >
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden flex flex-col max-h-[90vh]">
+                {/* Modal header */}
+                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
+                    <div className="flex items-center gap-2">
+                        <BarChart2 className="w-5 h-5 text-emerald-600" />
+                        <h2 className="text-gray-900 font-semibold">Resume Insights</h2>
+                    </div>
+                    <button
+                        onClick={onClose}
+                        className="text-gray-400 hover:text-gray-700 transition-colors rounded-full p-1 hover:bg-gray-100"
+                        aria-label="Close insights"
+                    >
+                        <X className="w-5 h-5" />
+                    </button>
+                </div>
+
+                {/* Modal body */}
+                <div className="overflow-y-auto flex-1 px-6 py-5 space-y-6">
+                    {loading && (
+                        <div className="flex flex-col items-center justify-center py-16 gap-3">
+                            <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+                            <span className="text-gray-500 text-sm">Computing SHAP values…</span>
+                        </div>
+                    )}
+
+                    {error && !loading && (
+                        <div className="flex flex-col items-center justify-center py-10 gap-3">
+                            <AlertCircle className="w-8 h-8 text-red-400" />
+                            <p className="text-red-600 font-medium text-sm">{error}</p>
+                        </div>
+                    )}
+
+                    {data && !loading && (
+                        <>
+                            {/* ── Section 1: SHAP Feature Importance ── */}
+                            <div>
+                                <h3 className="text-sm font-semibold text-gray-700 mb-1">XGBoost Feature Importance (SHAP)</h3>
+                                <p className="text-xs text-gray-400 mb-4">
+                                    Summed absolute SHAP contributions per feature group — higher = greater influence on the model prediction.
+                                </p>
+                                <ResponsiveContainer width="100%" height={220}>
+                                    <BarChart
+                                        data={data.shap_values}
+                                        layout="vertical"
+                                        margin={{ top: 0, right: 24, left: 8, bottom: 0 }}
+                                    >
+                                        <XAxis
+                                            type="number"
+                                            tick={{ fontSize: 11, fill: '#6b7280' }}
+                                            tickFormatter={(v) => v.toFixed(2)}
+                                            axisLine={false}
+                                            tickLine={false}
+                                        />
+                                        <YAxis
+                                            type="category"
+                                            dataKey="label"
+                                            width={165}
+                                            tick={{ fontSize: 11, fill: '#374151' }}
+                                            axisLine={false}
+                                            tickLine={false}
+                                        />
+                                        <Tooltip
+                                            formatter={(value: number) => [value.toFixed(4), 'SHAP |value|']}
+                                            contentStyle={{
+                                                fontSize: 12,
+                                                borderRadius: 8,
+                                                border: '1px solid #e5e7eb',
+                                                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                                            }}
+                                        />
+                                        <Bar dataKey="value" radius={[0, 4, 4, 0]}>
+                                            {data.shap_values.map((_, i) => (
+                                                <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+
+                            {/* ── Section 2: Raw Similarity Scores ── */}
+                            <div>
+                                <h3 className="text-sm font-semibold text-gray-700 mb-3">Raw Similarity Scores</h3>
+                                <div className="grid grid-cols-2 gap-3">
+                                    {[
+                                        {
+                                            label: 'TF-IDF Similarity',
+                                            value: data.tfidf_sim,
+                                            color: 'emerald',
+                                            desc: 'Keyword overlap between resume and job description',
+                                        },
+                                        {
+                                            label: 'SBERT Similarity',
+                                            value: data.sbert_sim,
+                                            color: 'sky',
+                                            desc: 'Semantic (meaning-level) similarity via sentence embeddings',
+                                        },
+                                    ].map(({ label, value, color, desc }) => (
+                                        <div
+                                            key={label}
+                                            className={`rounded-xl border p-4 bg-${color}-50 border-${color}-100`}
+                                        >
+                                            <p className={`text-xs text-${color}-600 font-medium mb-1`}>{label}</p>
+                                            <p className={`text-3xl font-bold text-${color}-700 mb-2`}>
+                                                {(value * 100).toFixed(1)}%
+                                            </p>
+                                            {/* Progress bar */}
+                                            <div className="w-full bg-white rounded-full h-1.5 overflow-hidden">
+                                                <div
+                                                    className={`h-1.5 rounded-full bg-${color}-500 transition-all duration-700`}
+                                                    style={{ width: `${Math.min(value * 100, 100)}%` }}
+                                                />
+                                            </div>
+                                            <p className="text-xs text-gray-400 mt-2 leading-tight">{desc}</p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            {/* ── Footnote ── */}
+                            <p className="text-xs text-gray-400 pb-1">
+                                SHAP values computed using <code className="font-mono bg-gray-100 px-1 rounded">shap.TreeExplainer</code> on the XGBoost classifier. Values represent contribution to the model's prediction.
+                            </p>
+                        </>
+                    )}
+                </div>
+            </div>
+        </div>
+    );
+}
+
 // ─── DOCX viewer sub-component ───────────────────────────────────────────────
 function DocxViewer({ url }: { url: string }) {
     const containerRef = useRef<HTMLDivElement>(null);
@@ -209,6 +387,10 @@ function DocxViewer({ url }: { url: string }) {
 export default function AdminResumeViewer({ candidateId, onBack, onAction }: AdminResumeViewerProps) {
     const [candidate, setCandidate] = useState<Candidate | null>(null);
     const [loading, setLoading] = useState(true);
+    const [insightsOpen, setInsightsOpen] = useState(false);
+    const [insightsData, setInsightsData] = useState<InsightsData | null>(null);
+    const [insightsLoading, setInsightsLoading] = useState(false);
+    const [insightsError, setInsightsError] = useState<string | null>(null);
 
     useEffect(() => {
         api.get('/api/candidates')
@@ -222,6 +404,23 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                 setLoading(false);
             });
     }, [candidateId]);
+
+    const handleViewInsights = async () => {
+        setInsightsOpen(true);
+        // Only fetch if we don't already have data cached for this candidate
+        if (insightsData) return;
+        setInsightsLoading(true);
+        setInsightsError(null);
+        try {
+            const res = await api.get(`/api/candidates/${candidateId}/insights`);
+            setInsightsData(res.data as InsightsData);
+        } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : 'Failed to load insights';
+            setInsightsError(msg);
+        } finally {
+            setInsightsLoading(false);
+        }
+    };
 
     if (loading) {
         return (
@@ -307,6 +506,14 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                             <Button variant="outline" onClick={handleDownload} disabled={!hasResume}>
                                 <Download className="w-4 h-4 mr-2" />
                                 Download
+                            </Button>
+                            <Button
+                                variant="outline"
+                                onClick={handleViewInsights}
+                                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                            >
+                                <BarChart2 className="w-4 h-4 mr-2" />
+                                View Insights
                             </Button>
                         </div>
                     </div>
@@ -433,6 +640,16 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                     </div>
                 </div>
             </div>
+
+            {/* Insights modal — fixed overlay */}
+            {insightsOpen && (
+                <InsightsModal
+                    data={insightsData}
+                    loading={insightsLoading}
+                    error={insightsError}
+                    onClose={() => setInsightsOpen(false)}
+                />
+            )}
         </div>
     );
 }
