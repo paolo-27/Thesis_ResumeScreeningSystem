@@ -1,0 +1,18 @@
+name: Sync Backend to Hugging Face
+on:
+  push:
+    branches: [main] # Runs every time you push to the main branch
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+      - name: Push to Hugging Face
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          # This pushes ONLY your /backend folder to the Hugging Face Space
+          git push --force https://VeridianThesis:$HF_TOKEN@huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC main
