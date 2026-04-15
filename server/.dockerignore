@@ -1,0 +1,26 @@
+# Virtual environment
+.venv/
+venv/
+env/
+
+# Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Local environment variables (ensure secrets are set in Hugging Face Spaces config)
+.env
+.env.local
+
+# Database (We don't want local databases in the container)
+*.sqlite3
+*.db
+app/*.db
+app/*.sqlite3
+
+# Uploads
+uploads/
+
+# Git
+.git/
