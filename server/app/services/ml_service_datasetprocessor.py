@@ -1412,9 +1412,9 @@ def _normalize_broken_experience_ranges(text):
 
 def experience_segments(text):
     raw = "" if pd.isna(text) else str(text).lower()
-    raw = raw.replace("'", "'")
-    raw = raw.replace("\u2013", "-").replace("\u2014", "-")
-    raw = raw.replace("\u2022", "\n").replace("|", "\n")
+    raw = raw.replace("’", "'")
+    raw = raw.replace("–", "-").replace("—", "-")
+    raw = raw.replace("•", "\n").replace("|", "\n")
 
     # Restore boundaries before experience headers and common date ranges.
     raw = re.sub(
@@ -1811,7 +1811,6 @@ def _extract_date_intervals_from_segment(segment):
         if interval:
             intervals.append(interval)
 
-    # Numeric MM/YYYY spans  e.g. "01/2022 - 03/2024" or "09/2020 to present"
     numeric_month_year_range = re.finditer(
         rf"{_NUMERIC_MONTH_YEAR_PATTERN}\s*(?:to|-)\s*(?:{_NUMERIC_MONTH_YEAR_PATTERN}|present|current|now)",
         segment,
@@ -1879,7 +1878,6 @@ def _extract_date_intervals_from_segment(segment):
         if interval:
             intervals.append(interval)
 
-    # Numeric month/year since e.g. "since 03/2021"
     since_numeric_month_year = re.finditer(rf"since\s+((?:0?[1-9]|1[0-2]))\s*/\s*({_YEAR_PATTERN})", segment)
     for match in since_numeric_month_year:
         start_month = int(match.group(1))
@@ -1968,6 +1966,66 @@ def _extract_explicit_year_values(text, patterns, range_mode="single"):
     return values
 
 
+def _extract_explicit_duration_years(text):
+    text = normalize_experience_text(text)
+    values = []
+
+    mixed_duration_patterns = [
+        rf"{_NUM_PATTERN}\s*(?:years?|yrs?)\s*(?:and\s*)?{_NUM_PATTERN}\s*(?:months?|mos?)",
+        rf"experience[^.\n]{{0,40}}?{_NUM_PATTERN}\s*(?:years?|yrs?)\s*(?:and\s*)?{_NUM_PATTERN}\s*(?:months?|mos?)",
+        rf"{_NUM_PATTERN}\s*(?:years?|yrs?)\s*(?:and\s*)?{_NUM_PATTERN}\s*(?:months?|mos?)\b[^.\n]{{0,40}}?experience",
+    ]
+    for pattern in mixed_duration_patterns:
+        for years_value, months_value in re.findall(pattern, text):
+            years_num = _to_int(years_value)
+            months_num = _to_int(months_value)
+            if 0 <= years_num <= 45 and 0 < months_num <= 120:
+                values.append(round(years_num + (months_num / 12), 1))
+
+    month_only_patterns = [
+        rf"{_NUM_PATTERN}\s*(?:months?|mos?)\s+(?:of\s+)?experience",
+        rf"experience[^.\n]{{0,40}}?{_NUM_PATTERN}\s*(?:months?|mos?)",
+        rf"{_NUM_PATTERN}\s*(?:months?|mos?)\b[^.\n]{{0,40}}?experience",
+    ]
+    for pattern in month_only_patterns:
+        for match in re.findall(pattern, text):
+            month_value = match[0] if isinstance(match, tuple) else match
+            months_num = _to_int(month_value)
+            if 0 < months_num <= 540:
+                values.append(round(months_num / 12, 1))
+
+    return values
+
+
+def _estimate_implicit_resume_years(resume_text):
+    normalized = normalize_experience_text(resume_text)
+    if not normalized or len(normalized) < 700:
+        return 0.0
+
+    if _has_experience_duration_signal(normalized):
+        return 0.0
+
+    anchor_hits = sum(1 for term in _IMPLICIT_EXPERIENCE_ANCHOR_TERMS if contains_term(normalized, term))
+    action_hits = sum(1 for term in _IMPLICIT_EXPERIENCE_ACTION_TERMS if contains_term(normalized, term))
+    quality_hits = sum(1 for term in _IMPLICIT_EXPERIENCE_QUALITY_TERMS if contains_term(normalized, term))
+    role_hits = sum(
+        1
+        for term in {"manager", "engineer", "developer", "analyst", "specialist", "accountant", "coordinator"}
+        if contains_term(normalized, term)
+    )
+    experience_mentions = len(re.findall(r"\bexperience\b", normalized))
+
+    # Conservative fallback for heavily cleaned resumes where the work-history
+    # structure survives but explicit dates/durations do not.
+    if anchor_hits >= 2 and (action_hits >= 2 or quality_hits >= 1 or role_hits >= 2 or experience_mentions >= 3):
+        return 2.0
+
+    if anchor_hits >= 1 and (action_hits >= 2 or quality_hits >= 1 or (role_hits >= 1 and experience_mentions >= 2)):
+        return 1.0
+
+    return 0.0
+
+
 def extract_required_years(job_description):
     normalized_job_description = _normalize_broken_experience_ranges(job_description)
 
@@ -2017,66 +2075,6 @@ def extract_required_years(job_description):
     return max(generic_values) if generic_values else 0
 
 
-def _extract_explicit_duration_years(text):
-    """Extract year-equivalents from month-based or mixed year+month durations."""
-    text = normalize_experience_text(text)
-    values = []
-
-    mixed_duration_patterns = [
-        rf"{_NUM_PATTERN}\s*(?:years?|yrs?)\s*(?:and\s*)?{_NUM_PATTERN}\s*(?:months?|mos?)",
-        rf"experience[^.\n]{{0,40}}?{_NUM_PATTERN}\s*(?:years?|yrs?)\s*(?:and\s*)?{_NUM_PATTERN}\s*(?:months?|mos?)",
-        rf"{_NUM_PATTERN}\s*(?:years?|yrs?)\s*(?:and\s*)?{_NUM_PATTERN}\s*(?:months?|mos?)\b[^.\n]{{0,40}}?experience",
-    ]
-    for pattern in mixed_duration_patterns:
-        for years_value, months_value in re.findall(pattern, text):
-            years_num = _to_int(years_value)
-            months_num = _to_int(months_value)
-            if 0 <= years_num <= 45 and 0 < months_num <= 120:
-                values.append(round(years_num + (months_num / 12), 1))
-
-    month_only_patterns = [
-        rf"{_NUM_PATTERN}\s*(?:months?|mos?)\s+(?:of\s+)?experience",
-        rf"experience[^.\n]{{0,40}}?{_NUM_PATTERN}\s*(?:months?|mos?)",
-        rf"{_NUM_PATTERN}\s*(?:months?|mos?)\b[^.\n]{{0,40}}?experience",
-    ]
-    for pattern in month_only_patterns:
-        for match in re.findall(pattern, text):
-            month_value = match[0] if isinstance(match, tuple) else match
-            months_num = _to_int(month_value)
-            if 0 < months_num <= 540:
-                values.append(round(months_num / 12, 1))
-
-    return values
-
-
-def _estimate_implicit_resume_years(resume_text):
-    """Conservative fallback for heavily-cleaned resumes with no explicit dates."""
-    normalized = normalize_experience_text(resume_text)
-    if not normalized or len(normalized) < 700:
-        return 0.0
-
-    if _has_experience_duration_signal(normalized):
-        return 0.0
-
-    anchor_hits = sum(1 for term in _IMPLICIT_EXPERIENCE_ANCHOR_TERMS if contains_term(normalized, term))
-    action_hits = sum(1 for term in _IMPLICIT_EXPERIENCE_ACTION_TERMS if contains_term(normalized, term))
-    quality_hits = sum(1 for term in _IMPLICIT_EXPERIENCE_QUALITY_TERMS if contains_term(normalized, term))
-    role_hits = sum(
-        1
-        for term in {"manager", "engineer", "developer", "analyst", "specialist", "accountant", "coordinator"}
-        if contains_term(normalized, term)
-    )
-    experience_mentions = len(re.findall(r"\bexperience\b", normalized))
-
-    if anchor_hits >= 2 and (action_hits >= 2 or quality_hits >= 1 or role_hits >= 2 or experience_mentions >= 3):
-        return 2.0
-
-    if anchor_hits >= 1 and (action_hits >= 2 or quality_hits >= 1 or (role_hits >= 1 and experience_mentions >= 2)):
-        return 1.0
-
-    return 0.0
-
-
 def extract_resume_years(resume_text):
     explicit_patterns = [
         _NUM_PATTERN + r"\+?\s*(?:years?|yrs?)\s+(?:of\s+)?experience",
@@ -2085,7 +2083,7 @@ def extract_resume_years(resume_text):
         + r"\s*(?:years?|yrs?)\s*(?:of\s+experience)?",
         r"experience\s*[:\-]?\s*" + _NUM_PATTERN + r"\s*(?:years?|yrs?)",
         r"(?:work|working|professional|related)\s+experience\s*[:\-]?\s*" + _NUM_PATTERN + r"\s*(?:years?|yrs?)",
-        rf"experience[^.\n]{{0,40}}?{_NUM_PATTERN}\s*(?:years?|yrs?)",
+        r"experience[^.\n]{0,40}?" + _NUM_PATTERN + r"\s*(?:years?|yrs?)",
         _NUM_PATTERN + r"\s*(?:years?|yrs?)\b[^.\n]{0,40}?experience",
         r"worked\s+for\s+" + _NUM_PATTERN + r"\s*(?:years?|yrs?)",
         r"professional\s+experience\s+(?:of\s+)?"
@@ -2215,12 +2213,27 @@ def skills_match_score(resume_text, job_description):
         resume_domains.intersection(_TECHNICAL_DOMAINS)
     )
     technical_foundation_skills = {
-        "python", "sql", "numpy", "pandas", "statistics",
-        "rest api", "docker", "kubernetes", "fastapi", "flask", "postgresql",
+        "python",
+        "sql",
+        "numpy",
+        "pandas",
+        "statistics",
+        "rest api",
+        "docker",
+        "kubernetes",
+        "fastapi",
+        "flask",
+        "postgresql",
     }
     advanced_technical_jd_skills = {
-        "machine learning", "scikit-learn", "xgboost", "nlp",
-        "deep learning", "feature engineering", "mlops", "data science",
+        "machine learning",
+        "scikit-learn",
+        "xgboost",
+        "nlp",
+        "deep learning",
+        "feature engineering",
+        "mlops",
+        "data science",
     }
     resume_technical_foundation = bool(resume_skills.intersection(technical_foundation_skills))
     jd_advanced_technical = bool(jd_skills.intersection(advanced_technical_jd_skills))
@@ -2372,18 +2385,9 @@ def calculate_strict_logic(resume_text, job_description, tfidf_sim=None, sbert_s
 
     return skills_score, exp_score, edu_score, domain_score
 
-def build_feature_vector(
-    resume_text: str,
-    job_description: str,
-) -> tuple[np.ndarray, np.ndarray, np.ndarray]:
+def build_feature_vector(resume_text: str, job_description: str) -> np.ndarray:
     """
     Constructs the 6-dimensional feature array using strict logic scoring.
-
-    Returns:
-        (features, resume_emb, job_emb)
-          features   – shape (1, 6) array ready for XGBoost
-          resume_emb – 384-dim SBERT embedding of the resume
-          job_emb    – 384-dim SBERT embedding of the job description
     """
     # --- 1. Calculate Mathematical Similarities First ---
     resume_emb = sbert.encode([resume_text])[0]
@@ -2426,52 +2430,22 @@ def build_feature_vector(
         domain_val
     ])
 
-    return features.reshape(1, -1), resume_emb, job_emb
+    return features.reshape(1, -1)
 
 def predict_resume_tier(resume_text: str, job_description: str) -> tuple[float, str]:
-    """
-    Scores a resume against a job description.
-
-    Returns:
-        (probability_score, gyr_tier)
-
-    This is the *legacy* signature kept for backward compatibility.
-    New code should call predict_resume_tier_with_embedding() to also
-    receive the SBERT embedding for storage in the vector DB.
-    """
-    prob_score, tier, _ = predict_resume_tier_with_embedding(resume_text, job_description)
-    return prob_score, tier
-
-
-def predict_resume_tier_with_embedding(
-    resume_text: str,
-    job_description: str,
-) -> tuple[float, str, list[float]]:
-    """
-    Scores a resume against a job description AND returns the SBERT embedding.
-
-    Returns:
-        (probability_score, gyr_tier, resume_embedding)
-          probability_score – float in [0, 1]; XGBoost "hire" probability
-          gyr_tier          – 'Green' | 'Yellow' | 'Red'
-          resume_embedding  – list[float] of length 384 (SBERT all-MiniLM-L6-v2)
-                              for storing in the pgvector `embedding` column.
-                              Returns an empty list on error/fallback.
-    """
-    _EMPTY_EMB: list[float] = []
-
     if not models_loaded:
         print("[ml_service] Models not loaded, returning fallback Red.")
-        return 0.0, "Red", _EMPTY_EMB
+        return 0.0, "Red"
 
     if not resume_text.strip():
         print("[ml_service] Empty resume text, returning fallback Red.")
-        return 0.0, "Red", _EMPTY_EMB
+        return 0.0, "Red"
 
     effective_job = job_description.strip() if job_description and job_description.strip() else "job position"
 
     try:
-        feature_vec, resume_emb, _ = build_feature_vector(resume_text, effective_job)
+        # Just pass the text; the function calculates the 6 features internally!
+        feature_vec = build_feature_vector(resume_text, effective_job)
 
         probabilities = classifier.predict_proba(feature_vec)
         # Class index 1 = "hired / shortlist" class
@@ -2486,11 +2460,11 @@ def predict_resume_tier_with_embedding(
             tier = "Red"
 
         print(f"[ml_service] Score={prob_score:.4f} Tier={tier}")
-        return prob_score, tier, resume_emb.tolist()
+        return prob_score, tier
 
     except Exception as e:
         print(f"[ml_service] Prediction error: {e}")
-        return 0.0, "Red", _EMPTY_EMB
+        return 0.0, "Red"
 
 
 # ---------------------------------------------------------------------------
@@ -2516,20 +2490,11 @@ _FEATURE_GROUPS = [
 
 def get_candidate_insights(resume_text: str, job_description: str) -> dict:
     if not models_loaded:
-        return {
-            "shap_values": [], "tfidf_sim": 0.0, "sbert_sim": 0.0,
-            "structured_scores": {"skills": 0, "experience": 0, "education": 0, "domain": 0},
-            "requirement_context": {
-                "skills":     {"jd_has_requirement": False, "jd_skill_count": 0, "resume_skill_count": 0, "jd_skills_sample": []},
-                "experience": {"jd_has_requirement": False, "required_years": 0, "candidate_years": 0.0},
-                "education":  {"jd_has_requirement": False, "required_level": "none", "jd_fields": [], "resume_level": "none", "resume_fields": []},
-                "domain":     {"jd_has_requirement": False, "jd_domains": [], "resume_domains": []},
-            },
-        }
+        return {"shap_values": [], "tfidf_sim": 0.0, "sbert_sim": 0.0}
 
     effective_job = job_description.strip() if job_description and job_description.strip() else "job position"
 
-    feature_vec, _, _ = build_feature_vector(resume_text, effective_job)
+    feature_vec = build_feature_vector(resume_text, effective_job)
 
     # Extract raw scalar similarity scores (Indexes 0 and 1 now!)
     tfidf_sim = float(feature_vec[0, 0])
@@ -2551,66 +2516,9 @@ def get_candidate_insights(resume_text: str, job_description: str) -> dict:
             "value": round(float(np.sum(np.abs(segment))), 6),
         })
 
-    # Extract structured dimension scores from the feature vector
-    # Feature vector layout: [0]=tfidf, [1]=sbert, [2]=skills(0-2), [3]=exp(0-3), [4]=edu(0-2), [5]=domain(0-1)
-    structured_scores = {
-        "skills":     round(float(feature_vec[0, 2]), 6),
-        "experience": round(float(feature_vec[0, 3]), 6),
-        "education":  round(float(feature_vec[0, 4]), 6),
-        "domain":     round(float(feature_vec[0, 5]), 6),
-    }
-
-    # ── Requirement context ───────────────────────────────────────────────────
-    # Surfaces JD detection metadata so the frontend knows WHY a score is 0:
-    # "JD never stated this requirement" vs "candidate failed the requirement".
-    # All helpers used here are already called during scoring — no new ML logic.
-
-    jd_skills      = extract_skills(effective_job)
-    resume_skills  = extract_skills(resume_text)
-    jd_skill_overlap = len(jd_skills.intersection(resume_skills))
-
-    required_years  = extract_required_years(effective_job)
-    candidate_years = float(extract_resume_years(resume_text))
-
-    edu_details    = education_match_details(resume_text, effective_job)
-
-    jd_domains     = extract_domains(effective_job)
-    resume_domains = extract_domains(resume_text)
-
-    requirement_context = {
-        "skills": {
-            "jd_has_requirement": bool(jd_skills),
-            "jd_skill_count":     len(jd_skills),
-            "resume_skill_count": jd_skill_overlap,
-            "jd_skills_sample":   sorted(jd_skills)[:8],
-        },
-        "experience": {
-            "jd_has_requirement": required_years > 0,
-            "required_years":     required_years,
-            "candidate_years":    round(candidate_years, 1),
-        },
-        "education": {
-            "jd_has_requirement": (
-                edu_details.get("required_level", "none") not in ("none", "")
-                or bool(edu_details.get("jd_fields", []))
-            ),
-            "required_level": edu_details.get("required_level", "none"),
-            "jd_fields":      sorted(edu_details.get("jd_fields", [])),
-            "resume_level":   edu_details.get("candidate_level", "none"),
-            "resume_fields":  sorted(edu_details.get("resume_fields", [])),
-        },
-        "domain": {
-            "jd_has_requirement": bool(jd_domains),
-            "jd_domains":         sorted(jd_domains),
-            "resume_domains":     sorted(resume_domains),
-        },
-    }
-
-    print(f"[ml_service] Insights computed | tfidf={tfidf_sim:.4f} sbert={sbert_sim:.4f} | scores={structured_scores}")
+    print(f"[ml_service] Insights computed | tfidf={tfidf_sim:.4f} sbert={sbert_sim:.4f}")
     return {
-        "shap_values":         grouped,
-        "tfidf_sim":           round(tfidf_sim, 6),
-        "sbert_sim":           round(sbert_sim, 6),
-        "structured_scores":   structured_scores,
-        "requirement_context": requirement_context,
+        "shap_values": grouped,
+        "tfidf_sim": round(tfidf_sim, 6),
+        "sbert_sim": round(sbert_sim, 6),
     }

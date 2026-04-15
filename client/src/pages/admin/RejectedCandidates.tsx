@@ -70,14 +70,6 @@ export default function RejectedCandidates({ jobId, candidates, onResumeSelect, 
             className="pl-10 h-12 border-gray-200"
           />
         </div>
-        <Button variant="outline" className="h-12 border-gray-200 text-gray-600 hover:bg-gray-50">
-          <Download className="w-4 h-4 mr-2" />
-          Export All
-        </Button>
-        <Button variant="outline" className="h-12 text-red-600 hover:bg-red-50 border-red-200">
-          <Trash2 className="w-4 h-4 mr-2" />
-          Delete All
-        </Button>
       </div>
 
       {/* Summary Card */}

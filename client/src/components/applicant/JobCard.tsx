@@ -11,6 +11,10 @@ interface JobCardProps {
     type: string;
     salary: string;
     posted: string;
+    description: string;
+    requirements: string[];
+    responsibilities: string[];
+    parsedRequirements?: string[] | null;
   };
   onClick: () => void;
 }

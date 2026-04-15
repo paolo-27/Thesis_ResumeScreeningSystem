@@ -2,22 +2,30 @@ import { useState } from 'react';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
-import { Eye, EyeOff, Zap, Brain, TrendingUp, Lock } from 'lucide-react';
+import { Eye, EyeOff, Zap, Brain, TrendingUp, Lock, Loader2, AlertCircle } from 'lucide-react';
 import VeridianLogo from './VeridianLogo';
+import { useAuth } from '../../../contexts/AuthContext';
 
 interface LoginPageProps {
   onLogin: () => void;
-  onResetPassword: () => void;
 }
 
-export default function LoginPage({ onLogin, onResetPassword }: LoginPageProps) {
+export default function LoginPage({ onLogin }: LoginPageProps) {
+  const { login, isLoading } = useAuth();
   const [showPassword, setShowPassword] = useState(false);
-  const [email, setEmail] = useState('');
+  const [employeeNumber, setEmployeeNumber] = useState('');
   const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onLogin();
+    setError('');
+    try {
+      await login(employeeNumber, password);
+      onLogin();
+    } catch (err: any) {
+      setError(err.message || 'Login failed. Please try again.');
+    }
   };
 
   return (
@@ -38,17 +46,25 @@ export default function LoginPage({ onLogin, onResetPassword }: LoginPageProps) 
               <p className="text-sm text-gray-500">Please enter your credentials to login</p>
             </div>
 
+            {error && (
+              <div className="mb-4 flex items-center gap-2 rounded-lg bg-red-50 border border-red-200 px-4 py-3 text-sm text-red-700">
+                <AlertCircle className="w-4 h-4 flex-shrink-0" />
+                {error}
+              </div>
+            )}
+
             <form onSubmit={handleSubmit} className="space-y-5">
               <div className="space-y-2">
-                <Label htmlFor="email" className="text-gray-700">Employee Number</Label>
+                <Label htmlFor="employee_number" className="text-gray-700">Employee Number</Label>
                 <Input
-                  id="number"
-                  type="number"
-                  placeholder="Enter your employee number "
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  id="employee_number"
+                  type="text"
+                  placeholder="Enter your employee number"
+                  value={employeeNumber}
+                  onChange={(e) => setEmployeeNumber(e.target.value)}
                   className="h-11 border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
                   required
+                  disabled={isLoading}
                 />
               </div>
 
@@ -63,6 +79,7 @@ export default function LoginPage({ onLogin, onResetPassword }: LoginPageProps) 
                     onChange={(e) => setPassword(e.target.value)}
                     className="h-11 pr-10 border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
                     required
+                    disabled={isLoading}
                   />
                   <button
                     type="button"
@@ -74,26 +91,23 @@ export default function LoginPage({ onLogin, onResetPassword }: LoginPageProps) 
                 </div>
               </div>
 
-              <div className="flex items-center justify-between text-sm">
+              <div className="flex items-center text-sm">
                 <label className="flex items-center gap-2 cursor-pointer">
                   <input type="checkbox" className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
                   <span className="text-gray-600">Remember me</span>
                 </label>
-                <button
-                  type="button"
-                  onClick={onResetPassword}
-                  className="text-emerald-600 hover:text-emerald-700"
-                >
-                  Forgot password?
-                </button>
               </div>
 
               <Button
                 type="submit"
+                disabled={isLoading}
                 className="w-full h-11 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white"
               >
-                <Lock className="w-4 h-4 mr-2" />
-                Sign In
+                {isLoading ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Signing in...</>
+                ) : (
+                  <><Lock className="w-4 h-4 mr-2" /> Sign In</>
+                )}
               </Button>
             </form>
           </div>
@@ -151,8 +165,8 @@ export default function LoginPage({ onLogin, onResetPassword }: LoginPageProps) 
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-300 to-purple-400 border-2 border-white"></div>
               </div>
               <div>
-                <p className="text-white">Trusted by 500+ companies</p>
-                <p className="text-emerald-200 text-sm">Processing 10,000+ resumes daily</p>
+                <p className="text-white">Internal HR Management System</p>
+                <p className="text-emerald-200 text-sm">Secure • Role-Based • Auditable</p>
               </div>
             </div>
           </div>

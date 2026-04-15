@@ -46,8 +46,8 @@ __pycache__/
 .mypy_cache/
 
 # Database (local SQLite file — never commit this)
-server/*.sqlite3
-server/*.db
+server/**/*.sqlite3
+server/**/*.db
 
 # Uploaded resume files (potentially large & sensitive)
 server/uploads/

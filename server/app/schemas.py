@@ -11,6 +11,8 @@ class JobPostingBase(BaseModel):
     postedDate: str
     description: Optional[str] = None
     requirements: Optional[str] = None
+    salary: Optional[str] = None
+    parsedRequirements: Optional[str] = None
 
 class JobPostingCreate(JobPostingBase):
     pass
@@ -38,4 +40,17 @@ class CandidateUpdate(BaseModel):
 
 class Candidate(CandidateBase):
     id: str
+    model_config = ConfigDict(from_attributes=True)
+
+class ActivityLogBase(BaseModel):
+    user_id: Optional[str] = None
+    action_type: str
+    description: str
+
+class ActivityLogCreate(ActivityLogBase):
+    pass
+
+class ActivityLog(ActivityLogBase):
+    id: str
+    timestamp: str
     model_config = ConfigDict(from_attributes=True)

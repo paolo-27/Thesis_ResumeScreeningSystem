@@ -10,3 +10,15 @@ PyPDF2==3.0.1
 python-docx==1.2.0
 sentence-transformers==5.2.3
 shap==0.51.0
+python-jose[cryptography]==3.3.0
+bcrypt==5.0.0
+
+# ── PostgreSQL / Supabase ──────────────────────────────────────────────────────
+# psycopg2-binary: synchronous PostgreSQL driver for SQLAlchemy (drop-in for SQLite)
+psycopg2-binary==2.9.11
+# asyncpg: async driver, available for future async route upgrades
+asyncpg==0.31.0
+# pgvector: SQLAlchemy type support for the `vector` column (pgvector extension)
+pgvector==0.4.2
+# python-dotenv: loads server/.env at startup
+python-dotenv==1.2.2

@@ -68,3 +68,11 @@ export interface Candidate {
     education?: string;
     skills?: string[];
 }
+
+export interface ActivityLog {
+    id: string;
+    user_id?: string;
+    action_type: string;
+    description: string;
+    timestamp: string;
+}

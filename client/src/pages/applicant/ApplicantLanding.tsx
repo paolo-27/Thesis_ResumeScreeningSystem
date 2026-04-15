@@ -21,6 +21,7 @@ interface MappedJob {
     description: string;
     requirements: string[];
     responsibilities: string[];
+    parsedRequirements?: string[] | null;
 }
 
 export default function ApplicantLanding() {
@@ -30,20 +31,41 @@ export default function ApplicantLanding() {
     const [isDialogOpen, setIsDialogOpen] = useState(false);
 
     useEffect(() => {
-        api.get('/api/jobs')
+        api.get('/api/jobs/public')
             .then(res => {
-                const mappedJobs = res.data.map((job: any) => ({
-                    id: job.id,
-                    title: job.title,
-                    company: "Veridian Innovations Inc.",
-                    location: job.location,
-                    type: job.type,
-                    salary: "Competitive",
-                    posted: new Date(job.postedDate).toLocaleDateString(),
-                    description: job.description || "No description provided.",
-                    requirements: job.requirements ? [job.requirements] : [],
-                    responsibilities: []
-                }));
+                const mappedJobs = res.data.map((job: any) => {
+                    let pReqs = null;
+                    try {
+                        if (job.parsedRequirements) {
+                            pReqs = JSON.parse(job.parsedRequirements);
+                        }
+                    } catch(e) {}
+
+                    let rawReqs: string[] = [];
+                    try {
+                        if (job.requirements && job.requirements.trim() !== "") {
+                            rawReqs = JSON.parse(job.requirements);
+                        }
+                    } catch(e) {
+                        if (job.requirements && job.requirements.trim() !== "") {
+                             rawReqs = [job.requirements];
+                        }
+                    }
+
+                    return {
+                        id: job.id,
+                        title: job.title,
+                        company: "Veridian Innovations Inc.",
+                        location: job.location,
+                        type: job.type,
+                        salary: job.salary && job.salary.trim() !== "" ? job.salary : "N/A",
+                        posted: new Date(job.postedDate).toLocaleDateString(),
+                        description: job.description || "No description provided.",
+                        requirements: rawReqs,
+                        responsibilities: [],
+                        parsedRequirements: pReqs
+                    };
+                });
                 // Filter out closed/draft jobs if necessary, for now returning all active
                 setJobs(mappedJobs.filter((j: any) => j.status !== 'Closed'));
             })

@@ -70,14 +70,6 @@ export default function ShortlistedCandidates({ jobId, candidates, onResumeSelec
             className="pl-10 h-12 border-gray-200"
           />
         </div>
-        <Button variant="outline" className="h-12 border-gray-200 text-gray-600 hover:bg-gray-50">
-          <Download className="w-4 h-4 mr-2" />
-          Export All
-        </Button>
-        <Button className="h-12 bg-blue-600 hover:bg-blue-700 text-white">
-          <Mail className="w-4 h-4 mr-2" />
-          Contact All
-        </Button>
       </div>
 
       {/* Summary Card */}

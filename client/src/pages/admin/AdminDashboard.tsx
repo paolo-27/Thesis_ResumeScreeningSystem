@@ -14,6 +14,7 @@ import { Progress } from '../../components/ui/progress';
 import { useNavigate } from 'react-router-dom';
 import type { JobPosting } from '../../types';
 import api from '../../lib/axios';
+import RecentActivities from '../../components/admin/RecentActivities';
 
 export default function AdminDashboard() {
   const navigate = useNavigate();
@@ -58,10 +59,10 @@ export default function AdminDashboard() {
         // Backend sets status = 'Pending' on new applications (not 'Applied')
         const pendingReviews = candidates.filter((c: any) => c.status === 'Pending').length;
 
-        // Sort jobs by postedDate descending and take top 4 to match design
+        // Sort jobs by postedDate descending
         const sortedJobs = [...jobs].sort((a: any, b: any) =>
           new Date(b.postedDate).getTime() - new Date(a.postedDate).getTime()
-        ).slice(0, 4);
+        );
 
         setStats({ activeJobs, totalCandidates, averageMatchScore: avgScore, pendingReviews });
         setRecentJobs(sortedJobs);
@@ -129,27 +130,22 @@ export default function AdminDashboard() {
 
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {statsCards.map((stat) => {
-          // If the stat is Total Candidates and it's 0, we'll conditionally change its value or appearance
-          const isZeroCandidates = stat.title === 'Total Candidates' && stats.totalCandidates === 0;
-
-          return (
-            <Card key={stat.title} className={`p-6 border-gray-200 transition-all ${isZeroCandidates ? 'opacity-50 grayscale' : 'hover:shadow-lg'}`}>
-              <div className="flex items-start justify-between mb-4">
-                <div className={`w-12 h-12 rounded-xl bg-${stat.color}-100 flex items-center justify-center`}>
-                  <stat.icon className={`w-6 h-6 text-${stat.color}-600`} />
-                </div>
+        {statsCards.map((stat) => (
+          <Card key={stat.title} className="p-6 border-gray-200 transition-all hover:shadow-lg">
+            <div className="flex items-start justify-between mb-4">
+              <div className={`w-12 h-12 rounded-xl bg-${stat.color}-100 flex items-center justify-center`}>
+                <stat.icon className={`w-6 h-6 text-${stat.color}-600`} />
               </div>
-              <div>
-                <p className="text-sm text-gray-500 mb-1">{stat.title}</p>
-                <p className="text-gray-900 mb-1 font-bold text-2xl">
-                  {isZeroCandidates ? '-' : stat.value}
-                </p>
-                <p className="text-xs text-gray-400">{isZeroCandidates ? 'No candidates yet' : stat.change}</p>
-              </div>
-            </Card>
-          );
-        })}
+            </div>
+            <div>
+              <p className="text-sm text-gray-500 mb-1">{stat.title}</p>
+              <p className="text-gray-900 mb-1 font-bold text-2xl">
+                {stat.value}
+              </p>
+              <p className="text-xs text-gray-400">{stat.change}</p>
+            </div>
+          </Card>
+        ))}
       </div>
 
       {/* Recent Jobs */}
@@ -164,7 +160,7 @@ export default function AdminDashboard() {
                 </div>
               </div>
             </div>
-            <div className="divide-y divide-gray-200">
+            <div className="divide-y divide-gray-200 overflow-y-auto max-h-[600px]">
               {recentJobs.length === 0 && <div className="p-6 text-gray-500 text-center">No active jobs found.</div>}
               {recentJobs.map((job: any) => {
                 const jobStat = jobStats[job.id] ?? { total: 0, green: 0, yellow: 0, red: 0 };
@@ -181,7 +177,7 @@ export default function AdminDashboard() {
                       <Button
                         variant="ghost"
                         size="sm"
-                        onClick={() => navigate('/admin/candidates')}
+                        onClick={() => navigate(`/admin/candidates?jobId=${job.id}`)}
                         className="text-emerald-600 hover:text-emerald-700 hover:bg-emerald-50"
                       >
                         View Details
@@ -226,20 +222,7 @@ export default function AdminDashboard() {
             </Button>
           </Card>
 
-          <Card className="p-6 border-gray-200">
-            <h3 className="text-gray-900 mb-4 font-bold">Recent Activity</h3>
-            <div className="space-y-4">
-              <div className="flex items-start gap-3">
-                <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
-                  <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm text-gray-900">Backend API Connected</p>
-                  <p className="text-xs text-gray-500">Live system status</p>
-                </div>
-              </div>
-            </div>
-          </Card>
+          <RecentActivities />
         </div>
       </div>
     </div>

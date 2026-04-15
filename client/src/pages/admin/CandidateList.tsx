@@ -79,10 +79,6 @@ export default function CandidateList({ jobId, rank, candidates, onResumeSelect,
             className="pl-10 h-12 border-gray-200"
           />
         </div>
-        <Button variant="outline" className="h-12">
-          <Download className="w-4 h-4 mr-2" />
-          Export List
-        </Button>
       </div>
 
       {/* Summary Stats */}

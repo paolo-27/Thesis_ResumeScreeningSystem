@@ -40,6 +40,7 @@ interface JobDetailsDialogProps {
     description: string;
     requirements: string[];
     responsibilities: string[];
+    parsedRequirements?: string[] | null;
   } | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -168,6 +169,16 @@ export function JobDetailsDialog({
 
   if (!job) return null;
 
+  // Filter out any empty, unparsed, or whitespace-only requirements
+  const safeParsed = (job.parsedRequirements || []).filter(r => r.trim().length > 0);
+  const safeReqs = (job.requirements || []).filter(r => r && r.trim().length > 0);
+
+  const displayRequirements = safeParsed.length > 0 ? safeParsed : safeReqs;
+
+  const displaySalary = job.salary && job.salary.toLowerCase() !== "competitive"
+    ? job.salary
+    : "N/A";
+
   return (
     <>
       <Dialog open={open} onOpenChange={handleDialogClose}>
@@ -180,23 +191,32 @@ export function JobDetailsDialog({
                     <DialogTitle className="text-2xl text-emerald-700 mb-2">
                       {job.title}
                     </DialogTitle>
-                    <DialogDescription className="space-y-2">
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <Building2 className="w-4 h-4" />
-                        <span>{job.company}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <MapPin className="w-4 h-4" />
-                        <span>{job.location}</span>
-                      </div>
-                      <div className="flex items-center gap-2 text-gray-600">
-                        <Coins className="w-4 h-4" />
-                        <span>{job.salary}</span>
-                      </div>
-                      <div>
-                        <Badge className="bg-emerald-100 text-emerald-700">
-                          {job.type}
-                        </Badge>
+                    <DialogDescription className="space-y-2" asChild>
+                      <div className="space-y-2 mt-2">
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Building2 className="w-4 h-4" />
+                          <span>{job.company}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <MapPin className="w-4 h-4" />
+                          <span>{job.location}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-gray-600">
+                          <Coins className="w-4 h-4" />
+                          <span>Salary: {displaySalary}</span>
+                        </div>
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          <Badge className="bg-emerald-100 text-emerald-700">
+                            {job.type}
+                          </Badge>
+                          <Badge
+                            variant="outline"
+                            className="border-emerald-200 text-emerald-700"
+                          >
+                            <Coins className="w-3 h-3 mr-1" />
+                            {displaySalary}
+                          </Badge>
+                        </div>
                       </div>
                     </DialogDescription>
                   </div>
@@ -207,42 +227,22 @@ export function JobDetailsDialog({
                 <div className="mt-6 space-y-6">
                   {/* Job Description */}
                   <div>
-                    <h3 className="text-emerald-700 mb-2">
-                      About the Role
+                    <h3 className="text-emerald-700 mb-2 font-semibold">
+                      Job Description
                     </h3>
-                    <p className="text-gray-600 leading-relaxed">
+                    <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
                       {job.description}
                     </p>
                   </div>
 
                   {/* Requirements */}
-                  <div>
-                    <h3 className="text-emerald-700 mb-3">
-                      Requirements
-                    </h3>
-                    <ul className="space-y-2">
-                      {job.requirements.map((req, index) => (
-                        <li
-                          key={index}
-                          className="flex gap-2 text-gray-600"
-                        >
-                          <span className="text-emerald-600 mt-1">
-                            •
-                          </span>
-                          <span>{req}</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-
-                  {/* Responsibilities */}
-                  <div>
-                    <h3 className="text-emerald-700 mb-3">
-                      Responsibilities
-                    </h3>
-                    <ul className="space-y-2">
-                      {job.responsibilities.map(
-                        (resp, index) => (
+                  {displayRequirements && displayRequirements.length > 0 && (
+                    <div>
+                      <h3 className="text-emerald-700 mb-3 font-semibold">
+                        Requirements
+                      </h3>
+                      <ul className="space-y-2">
+                        {displayRequirements.map((req, index) => (
                           <li
                             key={index}
                             className="flex gap-2 text-gray-600"
@@ -250,12 +250,12 @@ export function JobDetailsDialog({
                             <span className="text-emerald-600 mt-1">
                               •
                             </span>
-                            <span>{resp}</span>
+                            <span>{req}</span>
                           </li>
-                        ),
-                      )}
-                    </ul>
-                  </div>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
 
                   <div className="pt-4 border-t">
                     <Button
@@ -502,29 +502,31 @@ export function JobDetailsDialog({
             <AlertDialogTitle className="text-center text-2xl">
               Application Submitted Successfully!
             </AlertDialogTitle>
-            <AlertDialogDescription className="text-center space-y-3">
-              <p>
-                Thank you for applying for the{" "}
-                <span className="text-emerald-700">
-                  {job.title}
-                </span>{" "}
-                position at{" "}
-                <span className="text-emerald-700">
-                  {job.company}
-                </span>
-                .
-              </p>
-              <p>
-                We have received your application and our
-                AI-powered resume screening system will analyze
-                your qualifications. You will receive an email
-                confirmation shortly.
-              </p>
-              <p className="text-sm text-gray-500">
-                Our team will review your application and
-                contact you if your profile matches our
-                requirements.
-              </p>
+            <AlertDialogDescription asChild className="text-center space-y-3">
+              <div>
+                <div>
+                  Thank you for applying for the{" "}
+                  <span className="text-emerald-700">
+                    {job.title}
+                  </span>{" "}
+                  position at{" "}
+                  <span className="text-emerald-700">
+                    {job.company}
+                  </span>
+                  .
+                </div>
+                <div>
+                  We have received your application and our
+                  AI-powered resume screening system will analyze
+                  your qualifications. You will receive an email
+                  confirmation shortly.
+                </div>
+                <div className="text-sm text-gray-500">
+                  Our team will review your application and
+                  contact you if your profile matches our
+                  requirements.
+                </div>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="flex justify-center mt-4">

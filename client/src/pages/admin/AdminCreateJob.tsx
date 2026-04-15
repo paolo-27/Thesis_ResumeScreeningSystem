@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
-import { AlertCircle, CheckCircle2, Briefcase, ArrowLeft } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Briefcase, ArrowLeft, Loader2, Sparkles } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/axios';
@@ -23,7 +23,7 @@ export default function AdminCreateJob() {
         setIsSubmitting(true);
 
         try {
-            await api.post('/api/jobs/', {
+            const finalPayload = {
                 title: jobTitle,
                 department,
                 location,
@@ -31,7 +31,9 @@ export default function AdminCreateJob() {
                 description: jobDescription,
                 status: 'Active',
                 postedDate: new Date().toISOString()
-            });
+            };
+
+            await api.post('/api/jobs/', finalPayload);
 
             toast.success(`Job posting "${jobTitle}" has been published successfully!`);
             navigate('/admin/jobs');
@@ -140,10 +142,12 @@ export default function AdminCreateJob() {
                                 className="min-h-[250px] border-gray-200 focus:border-emerald-500 focus:ring-emerald-500 resize-none"
                                 required
                             />
-                            <p className="text-xs text-gray-500">
-                                Provide a detailed description to help attract the right candidates
-                            </p>
+                            <div className="flex justify-between items-center text-xs text-gray-500">
+                                <p>Provide a detailed description to help attract the right candidates.</p>
+                            </div>
                         </div>
+
+
 
                         <Card className="p-4 border-gray-200 bg-gradient-to-br from-blue-50 to-blue-100/50">
                             <div className="flex items-start gap-3">
