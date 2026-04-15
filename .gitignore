@@ -83,5 +83,9 @@ server/.env.local
 *.sw?
 Thumbs.db
 
+# Open .gitignore and add these lines
+server/model/*.pkl
+server/model/*.json
+
 # Linux
 *~

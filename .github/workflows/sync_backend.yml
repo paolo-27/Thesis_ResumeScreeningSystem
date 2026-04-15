@@ -1,7 +1,7 @@
 name: Sync Backend to Hugging Face
 on:
   push:
-    branches: [main] # Runs every time you push to the main branch
+    branches: [main]
 
 jobs:
   deploy:
@@ -9,10 +9,11 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0
-      - name: Push to Hugging Face
+          fetch-depth: 0 # Important: Subtree needs the full history
+      - name: Push Server to Hugging Face
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # This pushes ONLY your /backend folder to the Hugging Face Space
-          git push --force https://VeridianThesis:$HF_TOKEN@huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC main
+          # Use subtree push to only send the 'server' folder.
+          # This avoids sending your frontend or large root files.
+          git subtree push --prefix server https://VeridianThesis:$HF_TOKEN@huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC main
