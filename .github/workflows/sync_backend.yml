@@ -19,6 +19,12 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      # Recommended hardening: ensure git-lfs is initialized and LFS files are present
+      - name: Setup Git LFS
+        run: |
+          git lfs install
+          git lfs pull
+
       - name: Sync and Push Server Subtree
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
