@@ -1,6 +1,5 @@
 model/*.pkl
 model/*.joblib
-*.pkl
-model/*.pkl
-*.pkl
-
+model/*.bin
+model/*.pt
+model/*.onnx
