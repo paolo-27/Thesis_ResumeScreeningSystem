@@ -9,10 +9,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (with Git LFS)
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          lfs: true
+      uses: actions/checkout@v3
+      with:
+        fetch-depth: 0
+        lfs: true
 
       - name: Configure git identity
         run: |
@@ -25,7 +25,7 @@ jobs:
           git lfs install
           git lfs pull
 
-      - name: Sync and Push Server Subtree
+      - name: Sync and Push Server Subtree (with LFS)
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
@@ -44,3 +44,6 @@ jobs:
 
           # Force update Hugging Face main to match server/ exactly
           git push --force hf "${SPLIT_SHA}:refs/heads/main"
+
+          # Ensure large files tracked by LFS are uploaded to Hugging Face
+          git lfs push hf main
