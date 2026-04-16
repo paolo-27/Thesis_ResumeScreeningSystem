@@ -1,4 +1,5 @@
 name: Sync Backend to Hugging Face
+
 on:
   push:
     branches: [main]
@@ -20,15 +21,18 @@ jobs:
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          set -e
+          set -euo pipefail
+
           HF_URL="https://VeridianThesis:${HF_TOKEN}@huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC"
 
-          # Ensure we have the remote state locally so push is fast-forward
-          git remote add hf "$HF_URL" || true
-          git fetch hf main
+          # Add HF remote (idempotent)
+          git remote add hf "$HF_URL" 2>/dev/null || true
 
-          # Integrate remote changes (prevents "fetch first" rejection)
-          git merge --no-edit --allow-unrelated-histories hf/main || true
+          # Fetch remote branch if it exists (don't fail if it's empty/new)
+          git fetch hf main || true
 
-          # Now push subtree
-          git subtree push --prefix server "$HF_URL" main
+          # Create a commit that contains ONLY the server/ directory as the repo root
+          SPLIT_SHA="$(git subtree split --prefix server)"
+
+          # Force update Hugging Face main to match server/ exactly
+          git push --force hf "${SPLIT_SHA}:refs/heads/main"
