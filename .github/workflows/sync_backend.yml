@@ -1,5 +1,4 @@
 name: Sync Backend to Hugging Face
-
 on:
   push:
     branches: [main]
@@ -9,23 +8,22 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout (with Git LFS)
-      uses: actions/checkout@v3
-      with:
-        fetch-depth: 0
-        lfs: true
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+          lfs: true
 
       - name: Configure git identity
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      # Recommended hardening: ensure git-lfs is initialized and LFS files are present
       - name: Setup Git LFS
         run: |
           git lfs install
           git lfs pull
 
-      - name: Sync and Push Server Subtree (with LFS)
+      - name: Sync and Push Server Subtree
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
@@ -33,17 +31,12 @@ jobs:
 
           HF_URL="https://VeridianThesis:${HF_TOKEN}@huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC"
 
-          # Add HF remote (idempotent)
+          # Add HF remote
           git remote add hf "$HF_URL" 2>/dev/null || true
 
-          # Fetch remote branch if it exists (don't fail if it's empty/new)
-          git fetch hf main || true
+          # Create a temporary commit of just the server/ folder
+          # This makes 'server' the root of the Hugging Face Space
+          SPLIT_SHA=$(git subtree split --prefix server main)
 
-          # Create a commit that contains ONLY the server/ directory as the repo root
-          SPLIT_SHA="$(git subtree split --prefix server)"
-
-          # Force update Hugging Face main to match server/ exactly
+          # Force push that specific folder to Hugging Face
           git push --force hf "${SPLIT_SHA}:refs/heads/main"
-
-          # Ensure large files tracked by LFS are uploaded to Hugging Face
-          git lfs push hf main
