@@ -9,31 +9,40 @@ from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
 from datetime import date
 
-# ---------------------------------------------------------------------------
-# Paths
-# ---------------------------------------------------------------------------
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-MODEL_DIR = os.path.join(BASE_DIR, "model")
+from huggingface_hub import hf_hub_download
 
-vectorizer_path = os.path.join(MODEL_DIR, "tfidf_vectorizer.pkl")
-classifier_path = os.path.join(MODEL_DIR, "trained_xgb_model.json")
+# ---------------------------------------------------------------------------
+# Hugging Face model repo (store artifacts here, not in the Space git repo)
+# ---------------------------------------------------------------------------
+HF_REPO_ID = os.getenv("HF_MODEL_REPO", "VeridianThesis/ResumeScreeningModel")
+HF_TOKEN = os.getenv("HF_TOKEN")  # set as Space secret if repo is private
+
+def _download(filename: str) -> str:
+    return hf_hub_download(
+        repo_id=HF_REPO_ID,
+        filename=filename,
+        token=HF_TOKEN,   # safe even if None for public repos
+    )
 
 # ---------------------------------------------------------------------------
 # Load models globally (once on startup)
 # ---------------------------------------------------------------------------
 try:
-    # 1. TF-IDF vectorizer (sklearn, joblib)
-    vectorizer = joblib.load(vectorizer_path)
+    # 1) TF-IDF vectorizer
+    vectorizer_file = _download("tfidf_vectorizer.pkl")
+    vectorizer = joblib.load(vectorizer_file)
     print(f"[ml_service] TF-IDF vectorizer loaded | vocab={len(vectorizer.vocabulary_)} features")
 
-    # 2. XGBoost classifier (native XGBoost JSON format)
+    # 2) XGBoost classifier JSON
+    classifier_file = _download("trained_xgb_model.json")
     classifier = XGBClassifier()
-    classifier.load_model(classifier_path)
+    classifier.load_model(classifier_file)
     print(f"[ml_service] XGBoost classifier loaded | expects {classifier.n_features_in_} features")
 
-    # 3. SBERT model (all-MiniLM-L6-v2 → 384-dim embeddings)
-    #    local_files_only=True prevents any network request (avoids errno -3 offline)
-    sbert = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
+    # 3) SBERT model
+    # On Spaces, it's often better to allow download (remove local_files_only=True),
+    # otherwise it may fail if the image/cache is empty.
+    sbert = SentenceTransformer("all-MiniLM-L6-v2")
     print("[ml_service] SBERT model loaded")
 
     models_loaded = True
@@ -41,7 +50,7 @@ try:
 except Exception as e:
     print(f"[ml_service] Error loading models: {e}")
     models_loaded = False
-
+    
 # SHAP explainer — lazily initialised on first use and cached
 _shap_explainer = None
 
