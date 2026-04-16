@@ -1,18 +1,24 @@
-- name: Push Server Subtree
-  env:
-    HF_TOKEN: ${{ secrets.HF_TOKEN }}
-  run: |
-    set -euo pipefail
+name: Sync Backend to Hugging Face
+on:
+  push:
+    branches: [main]
 
-    HF_URL="https://VeridianThesis:${HF_TOKEN}@huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC"
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          fetch-depth: 0 # Required for subtree to work correctly
 
-    # Ensure we have an up-to-date view of the remote branch
-    git remote remove hf 2>/dev/null || true
-    git remote add hf "$HF_URL"
-    git fetch hf main
+      - name: Push Server Subtree
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
 
-    # Integrate remote changes so the push can fast-forward
-    git rebase hf/main
+          HF_URL="https://VeridianThesis:${HF_TOKEN}@huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC"
 
-    # Now push only the server/ folder as the Space root
-    git subtree push --prefix server "$HF_URL" main
+          # Push only the server/ folder as the Space root.
+          # Force is needed to avoid "rejected (fetch first)" when the remote has commits not in this repo.
+          git subtree push --prefix server "$HF_URL" main --force
