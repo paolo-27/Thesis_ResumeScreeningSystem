@@ -4,5 +4,13 @@ server/model/* filter=lfs diff=lfs merge=lfs -text
 # Model artifacts must be LFS on Hugging Face
 *.pkl filter=lfs diff=lfs merge=lfs -text
 *.joblib filter=lfs diff=lfs merge=lfs -text
-model/** filter=lfs diff=lfs merge=lfs -text
+*.json filter=lfs diff=lfs merge=lfs -text
 server/model/** filter=lfs diff=lfs merge=lfs -text
+server/model/** filter=lfs diff=lfs merge=lfs -text
+# server/.gitattributes
+server/model/*.pkl filter=lfs diff=lfs merge=lfs -text
+# (optional) other common ML artifacts
+server/model/*.joblib filter=lfs diff=lfs merge=lfs -text
+server/model/*.bin filter=lfs diff=lfs merge=lfs -text
+server/model/*.pt filter=lfs diff=lfs merge=lfs merge=lfs -text
+server/model/*.onnx filter=lfs diff=lfs merge=lfs -texts
