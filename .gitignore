@@ -83,13 +83,7 @@ server/.env.local
 *.sw?
 Thumbs.db
 
-# ML artifacts / large binaries
-server/model/*.pkl
-server/model/*.joblib
-server/model/*.bin
-server/model/*.json
 
 # Linux
 *~
-server/model/*.pkl
-server/model/*.json
+

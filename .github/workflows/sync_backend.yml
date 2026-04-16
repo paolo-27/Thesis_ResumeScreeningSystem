@@ -9,13 +9,12 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # Required for subtree to work correctly
+          fetch-depth: 0 # Required to see the history
 
-      - name: Push Server Subtree
+      - name: Force Push Server to Hugging Face
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # This command 'slices' out the server folder 
-          # and pushes it as the root of your Hugging Face Space.
-          # The frontend folder will NOT be sent to Hugging Face.
-          git subtree push --prefix server https://VeridianThesis:$HF_TOKEN@huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC main
+          # 1. Create a temporary 'split' of just the server folder
+          # 2. Force push that split to the Hugging Face main branch
+          git push https://VeridianThesis:$HF_TOKEN@huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC $(git subtree split --prefix server main):main --force
