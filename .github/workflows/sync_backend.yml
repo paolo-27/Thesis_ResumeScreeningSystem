@@ -9,16 +9,26 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # Required for subtree to work correctly
+          fetch-depth: 0
 
-      - name: Push Server Subtree
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Sync and Push Server Subtree
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          set -euo pipefail
-
+          set -e
           HF_URL="https://VeridianThesis:${HF_TOKEN}@huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC"
 
-          # Push only the server/ folder as the Space root.
-          # Force is needed to avoid "rejected (fetch first)" when the remote has commits not in this repo.
-          git subtree push --prefix server "$HF_URL" main --force
+          # Ensure we have the remote state locally so push is fast-forward
+          git remote add hf "$HF_URL" || true
+          git fetch hf main
+
+          # Integrate remote changes (prevents "fetch first" rejection)
+          git merge --no-edit --allow-unrelated-histories hf/main || true
+
+          # Now push subtree
+          git subtree push --prefix server "$HF_URL" main
