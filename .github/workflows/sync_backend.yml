@@ -18,37 +18,26 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Setup Git LFS
+      - name: Setup Git LFS (fetch required objects)
         run: |
           git lfs install
-          git lfs pull
+          git lfs fetch --all
+          git lfs checkout
 
       - name: Sync and Push Server Subtree
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
           set -euo pipefail
-          export GIT_TERMINAL_PROMPT=0
 
-          # Trim possible trailing newline/carriage return from the secret
-          HF_TOKEN_CLEAN="$(printf '%s' "$HF_TOKEN" | tr -d '\r\n')"
-          if [ -z "${HF_TOKEN_CLEAN}" ]; then
-            echo "HF_TOKEN is empty. Please set secrets.HF_TOKEN in the repo settings."
-            exit 1
-          fi
+          HF_URL="https://VeridianThesis:${HF_TOKEN}@huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC"
 
-          # Hugging Face Space repo (no scheme here; we'll build the full URL with auth)
-          HF_REPO="huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC"
+          # Add HF remote
+          git remote add hf "$HF_URL" 2>/dev/null || true
 
-          # Use token-in-URL so git never prompts for username/password in CI
-          # Username can be anything; 'user' is fine.
-          HF_REPO_URL="https://user:${HF_TOKEN_CLEAN}@${HF_REPO}"
-
-          # Configure HF remote
-          git remote add hf "$HF_REPO_URL" 2>/dev/null || git remote set-url hf "$HF_REPO_URL"
-
-          # Split subtree so server/ becomes repo root on Hugging Face
+          # Create a temporary commit of just the server/ folder
+          # This makes 'server' the root of the Hugging Face Space
           SPLIT_SHA=$(git subtree split --prefix server main)
 
-          # Push to HF Space
+          # Force push that specific folder to Hugging Face
           git push --force hf "${SPLIT_SHA}:refs/heads/main"
