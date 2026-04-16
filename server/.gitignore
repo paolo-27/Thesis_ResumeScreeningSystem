@@ -2,4 +2,4 @@ model/*.pkl
 model/*.joblib
 model/*.bin
 model/*.pt
-model/*.onnx
+model/*.onnxmodel/
