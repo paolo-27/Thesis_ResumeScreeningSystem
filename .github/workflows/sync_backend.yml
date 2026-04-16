@@ -1,20 +1,18 @@
-name: Sync Backend to Hugging Face
-on:
-  push:
-    branches: [main]
+- name: Push Server Subtree
+  env:
+    HF_TOKEN: ${{ secrets.HF_TOKEN }}
+  run: |
+    set -euo pipefail
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v3
-        with:
-          fetch-depth: 0 # Required to see the history
+    HF_URL="https://VeridianThesis:${HF_TOKEN}@huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC"
 
-      - name: Force Push Server to Hugging Face
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          # 1. Create a temporary 'split' of just the server folder
-          # 2. Force push that split to the Hugging Face main branch
-          git push https://VeridianThesis:$HF_TOKEN@huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC $(git subtree split --prefix server main):main --force
+    # Ensure we have an up-to-date view of the remote branch
+    git remote remove hf 2>/dev/null || true
+    git remote add hf "$HF_URL"
+    git fetch hf main
+
+    # Integrate remote changes so the push can fast-forward
+    git rebase hf/main
+
+    # Now push only the server/ folder as the Space root
+    git subtree push --prefix server "$HF_URL" main
