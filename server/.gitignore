@@ -1,1 +1,6 @@
-model/**/*.pkl
+model/*.pkl
+model/*.joblib
+*.pkl
+model/*.pkl
+*.pkl
+
