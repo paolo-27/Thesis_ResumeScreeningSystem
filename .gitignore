@@ -83,9 +83,13 @@ server/.env.local
 *.sw?
 Thumbs.db
 
-# Open .gitignore and add these lines
+# ML artifacts / large binaries
 server/model/*.pkl
+server/model/*.joblib
+server/model/*.bin
 server/model/*.json
 
 # Linux
 *~
+server/model/*.pkl
+server/model/*.json

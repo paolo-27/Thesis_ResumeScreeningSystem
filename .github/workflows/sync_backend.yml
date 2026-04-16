@@ -9,11 +9,13 @@ jobs:
     steps:
       - uses: actions/checkout@v3
         with:
-          fetch-depth: 0 # Important: Subtree needs the full history
-      - name: Push Server to Hugging Face
+          fetch-depth: 0 # Required for subtree to work correctly
+
+      - name: Push Server Subtree
         env:
           HF_TOKEN: ${{ secrets.HF_TOKEN }}
         run: |
-          # Use subtree push to only send the 'server' folder.
-          # This avoids sending your frontend or large root files.
+          # This command 'slices' out the server folder 
+          # and pushes it as the root of your Hugging Face Space.
+          # The frontend folder will NOT be sent to Hugging Face.
           git subtree push --prefix server https://VeridianThesis:$HF_TOKEN@huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC main
