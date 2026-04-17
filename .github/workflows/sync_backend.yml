@@ -2,6 +2,7 @@ name: Sync Backend to Hugging Face
 on:
   push:
     branches: [main]
+  workflow_dispatch: {}
 
 jobs:
   deploy:
@@ -19,22 +20,18 @@ jobs:
           set -euo pipefail
           export GIT_TERMINAL_PROMPT=0
 
-          # --- Token guard ---
           HF_TOKEN_CLEAN="$(printf '%s' "${HF_TOKEN:-}" | tr -d '\r\n')"
           if [ -z "${HF_TOKEN_CLEAN}" ]; then
             echo "HF_TOKEN is empty. Please set secrets.HF_TOKEN in the repo settings."
             exit 1
           fi
 
-          # --- Hugging Face Space repo ---
           HF_REPO="huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC"
           HF_REPO_URL="https://user:${HF_TOKEN_CLEAN}@${HF_REPO}"
 
-          # --- Create clean snapshot from server/ only ---
           rm -rf /tmp/hf-space
           mkdir -p /tmp/hf-space
 
-          # Exclude model artifacts / heavy binaries so HF Spaces doesn't reject the push
           rsync -a --delete \
             --exclude '.git/' \
             --exclude '.gitattributes' \
@@ -48,20 +45,17 @@ jobs:
 
           cd /tmp/hf-space
 
-          # --- Fail fast if anything model-like slipped in ---
-          echo "Checking for forbidden artifacts in snapshot..."
+          echo "Fail-fast check for forbidden artifacts:"
           forbidden="$(find . -type f \( -name '*.pkl' -o -name '*.joblib' -o -name '*.pt' -o -name '*.bin' -o -name '*.onnx' \) -print || true)"
           if [ -n "$forbidden" ]; then
-            echo "ERROR: model/binary artifacts detected in snapshot. Remove them from server/ or expand rsync excludes:"
+            echo "ERROR: forbidden artifacts detected in snapshot:"
             echo "$forbidden"
             exit 1
           fi
 
-          # (Optional) helpful debug output
           echo "Largest files in snapshot:"
           find . -type f -printf '%s\t%p\n' | sort -nr | head -n 20
 
-          # --- Initialize fresh git repo and force-push to Space ---
           git init
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
