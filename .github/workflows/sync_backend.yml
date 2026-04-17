@@ -1,57 +1,37 @@
-name: Sync Backend to Hugging Face
-on:
-  push:
-    branches: [main]
+- name: Sync and Push Server Snapshot
+  env:
+    HF_TOKEN: ${{ secrets.HF_TOKEN }}
+  run: |
+    set -euo pipefail
+    export GIT_TERMINAL_PROMPT=0
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout (with Git LFS)
-        uses: actions/checkout@v3
-        with:
-          fetch-depth: 0
-          lfs: true
+    HF_TOKEN_CLEAN="$(printf '%s' "$HF_TOKEN" | tr -d '\r\n')"
+    if [ -z "${HF_TOKEN_CLEAN}" ]; then
+      echo "HF_TOKEN is empty. Please set secrets.HF_TOKEN in the repo settings."
+      exit 1
+    fi
 
-      - name: Configure git identity
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
+    HF_REPO="huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC"
+    HF_REPO_URL="https://user:${HF_TOKEN_CLEAN}@${HF_REPO}"
 
-      - name: Setup Git LFS
-        run: |
-          git lfs install
-          git lfs pull
+    git remote add hf "$HF_REPO_URL" 2>/dev/null || git remote set-url hf "$HF_REPO_URL"
 
-      - name: Sync and Push Server Subtree
-        env:
-          HF_TOKEN: ${{ secrets.HF_TOKEN }}
-        run: |
-          set -euo pipefail
-          export GIT_TERMINAL_PROMPT=0
+    # Create a clean snapshot branch from server/ only (no history)
+    rm -rf /tmp/hf-space
+    mkdir -p /tmp/hf-space
+    rsync -a --delete server/ /tmp/hf-space/
 
-          # Trim possible trailing newline/carriage return from the secret
-          HF_TOKEN_CLEAN="$(printf '%s' "$HF_TOKEN" | tr -d '\r\n')"
-          if [ -z "${HF_TOKEN_CLEAN}" ]; then
-            echo "HF_TOKEN is empty. Please set secrets.HF_TOKEN in the repo settings."
-            exit 1
-          fi
+    cd /tmp/hf-space
+    git init
+    git config user.name "github-actions[bot]"
+    git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          # Hugging Face Space repo (no scheme here; we'll build the full URL with auth)
-          HF_REPO="huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC"
+    git lfs install
 
-          # Use token-in-URL so git never prompts for username/password in CI
-          # Username can be anything; 'user' is fine.
-          HF_REPO_URL="https://user:${HF_TOKEN_CLEAN}@${HF_REPO}"
+    # Optional: keep .gitattributes if you need LFS for anything (but you probably don't for Spaces)
+    git add -A
+    git commit -m "Sync from GitHub ${GITHUB_SHA}"
 
-          # Configure HF remote
-          git remote add hf "$HF_REPO_URL" 2>/dev/null || git remote set-url hf "$HF_REPO_URL"
-
-          # Split subtree so server/ becomes repo root on Hugging Face
-          SPLIT_SHA=$(git subtree split --prefix server main)
-
-          # Push to HF Space
-          git push --force hf "${SPLIT_SHA}:refs/heads/main"
-
-          # Ensure LFS objects referenced by the pushed commit are uploaded too
-          git lfs push hf main
+    git branch -M main
+    git remote add hf "$HF_REPO_URL"
+    git push --force hf main
