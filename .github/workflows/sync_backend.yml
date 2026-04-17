@@ -1,37 +1,74 @@
-- name: Sync and Push Server Snapshot
-  env:
-    HF_TOKEN: ${{ secrets.HF_TOKEN }}
-  run: |
-    set -euo pipefail
-    export GIT_TERMINAL_PROMPT=0
+name: Sync Backend to Hugging Face
+on:
+  push:
+    branches: [main]
 
-    HF_TOKEN_CLEAN="$(printf '%s' "$HF_TOKEN" | tr -d '\r\n')"
-    if [ -z "${HF_TOKEN_CLEAN}" ]; then
-      echo "HF_TOKEN is empty. Please set secrets.HF_TOKEN in the repo settings."
-      exit 1
-    fi
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
 
-    HF_REPO="huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC"
-    HF_REPO_URL="https://user:${HF_TOKEN_CLEAN}@${HF_REPO}"
+      - name: Sync and Push Server Snapshot (exclude model artifacts)
+        env:
+          HF_TOKEN: ${{ secrets.HF_TOKEN }}
+        run: |
+          set -euo pipefail
+          export GIT_TERMINAL_PROMPT=0
 
-    git remote add hf "$HF_REPO_URL" 2>/dev/null || git remote set-url hf "$HF_REPO_URL"
+          # --- Token guard ---
+          HF_TOKEN_CLEAN="$(printf '%s' "${HF_TOKEN:-}" | tr -d '\r\n')"
+          if [ -z "${HF_TOKEN_CLEAN}" ]; then
+            echo "HF_TOKEN is empty. Please set secrets.HF_TOKEN in the repo settings."
+            exit 1
+          fi
 
-    # Create a clean snapshot branch from server/ only (no history)
-    rm -rf /tmp/hf-space
-    mkdir -p /tmp/hf-space
-    rsync -a --delete server/ /tmp/hf-space/
+          # --- Hugging Face Space repo ---
+          HF_REPO="huggingface.co/spaces/VeridianThesis/ResumeScreeningSRC"
+          HF_REPO_URL="https://user:${HF_TOKEN_CLEAN}@${HF_REPO}"
 
-    cd /tmp/hf-space
-    git init
-    git config user.name "github-actions[bot]"
-    git config user.email "github-actions[bot]@users.noreply.github.com"
+          # --- Create clean snapshot from server/ only ---
+          rm -rf /tmp/hf-space
+          mkdir -p /tmp/hf-space
 
-    git lfs install
+          # Exclude model artifacts / heavy binaries so HF Spaces doesn't reject the push
+          rsync -a --delete \
+            --exclude '.git/' \
+            --exclude '.gitattributes' \
+            --exclude 'model/***' \
+            --exclude '*.pkl' \
+            --exclude '*.joblib' \
+            --exclude '*.pt' \
+            --exclude '*.bin' \
+            --exclude '*.onnx' \
+            server/ /tmp/hf-space/
 
-    # Optional: keep .gitattributes if you need LFS for anything (but you probably don't for Spaces)
-    git add -A
-    git commit -m "Sync from GitHub ${GITHUB_SHA}"
+          cd /tmp/hf-space
 
-    git branch -M main
-    git remote add hf "$HF_REPO_URL"
-    git push --force hf main
+          # --- Fail fast if anything model-like slipped in ---
+          echo "Checking for forbidden artifacts in snapshot..."
+          forbidden="$(find . -type f \( -name '*.pkl' -o -name '*.joblib' -o -name '*.pt' -o -name '*.bin' -o -name '*.onnx' \) -print || true)"
+          if [ -n "$forbidden" ]; then
+            echo "ERROR: model/binary artifacts detected in snapshot. Remove them from server/ or expand rsync excludes:"
+            echo "$forbidden"
+            exit 1
+          fi
+
+          # (Optional) helpful debug output
+          echo "Largest files in snapshot:"
+          find . -type f -printf '%s\t%p\n' | sort -nr | head -n 20
+
+          # --- Initialize fresh git repo and force-push to Space ---
+          git init
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          git commit -m "Sync from GitHub ${GITHUB_SHA}"
+
+          git branch -M main
+          git remote add hf "$HF_REPO_URL"
+          git push --force hf main
