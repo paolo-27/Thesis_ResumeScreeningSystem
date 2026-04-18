@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
+import api from '../../lib/axios';
 import {
   User, Mail, Phone, Building2, MapPin, Save, Loader2,
   CheckCircle, AlertCircle, Briefcase, FileText, Shield,
@@ -34,11 +35,10 @@ export default function ProfilePage() {
   // Fetch strictly personal stats once
   useEffect(() => {
     if (!token) return;
-    const headers = { Authorization: `Bearer ${token}` };
 
-    fetch('/api/auth/me/stats', { headers })
-      .then(r => r.json())
-      .then(data => {
+    api.get('/api/auth/me/stats')
+      .then(r => {
+        const data = r.data;
         setJobsPosted(data.jobs_posted || 0);
         setResumesCount(data.resumes_screened || 0);
       })
@@ -57,13 +57,8 @@ export default function ProfilePage() {
     e.preventDefault();
     setSaveStatus('saving');
     try {
-      const res = await fetch('/api/auth/me', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ name, email, phone, company, location, avatar_color: avatarColor }),
-      });
-      if (!res.ok) throw new Error();
-      const updated = await res.json();
+      const res = await api.patch('/api/auth/me', { name, email, phone, company, location, avatar_color: avatarColor });
+      const updated = res.data;
       updateUser(updated);
       setSaveStatus('ok');
       setTimeout(() => setSaveStatus('idle'), 3000);

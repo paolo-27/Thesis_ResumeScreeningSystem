@@ -7,6 +7,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNavigate } from 'react-router-dom';
+import api from '../../lib/axios';
 import {
   UserCog, Plus, Power, PowerOff, Loader2, AlertCircle, CheckCircle,
   RefreshCw, Shield, ShieldOff, X, KeyRound,
@@ -72,17 +73,14 @@ export default function UserManagement() {
   const fetchUsers = useCallback(async () => {
     setLoading(true); setError('');
     try {
-      const res = await fetch('/api/auth/users', {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      if (!res.ok) throw new Error();
-      setUsers(await res.json());
+      const res = await api.get('/api/auth/users');
+      setUsers(res.data);
     } catch {
       setError('Failed to load users.');
     } finally {
       setLoading(false);
     }
-  }, [token]);
+  }, []);
 
   useEffect(() => { fetchUsers(); }, [fetchUsers]);
 
@@ -90,20 +88,12 @@ export default function UserManagement() {
     e.preventDefault();
     setCreating(true); setCreateError('');
     try {
-      const res = await fetch('/api/auth/users', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify(form),
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Failed');
-      }
+      await api.post('/api/auth/users', form);
       setShowCreateModal(false);
       setForm(EMPTY_FORM);
       fetchUsers();
     } catch (err: any) {
-      setCreateError(err.message);
+      setCreateError(err.response?.data?.detail || err.message || 'Failed');
     } finally {
       setCreating(false);
     }
@@ -113,10 +103,7 @@ export default function UserManagement() {
     setActionUserId(emp_num);
     try {
       const action = activate ? 'reactivate' : 'deactivate';
-      await fetch(`/api/auth/users/${emp_num}/${action}`, {
-        method: 'PATCH',
-        headers: { Authorization: `Bearer ${token}` },
-      });
+      await api.patch(`/api/auth/users/${emp_num}/${action}`);
       fetchUsers();
     } finally {
       setActionUserId(null);
@@ -131,20 +118,14 @@ export default function UserManagement() {
 
     setResetting(true);
     try {
-      const res = await fetch(`/api/auth/users/${resetTarget!.employee_number}/reset-password`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ new_password: newPassword }),
+      await api.patch(`/api/auth/users/${resetTarget!.employee_number}/reset-password`, {
+        new_password: newPassword
       });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.detail || 'Reset failed');
-      }
       setResetSuccess(`Password for ${resetTarget!.name} has been reset.`);
       setNewPassword(''); setConfirmPassword('');
       setTimeout(() => { setResetTarget(null); setResetSuccess(''); }, 2000);
     } catch (err: any) {
-      setResetError(err.message);
+      setResetError(err.response?.data?.detail || err.message || 'Reset failed');
     } finally {
       setResetting(false);
     }
