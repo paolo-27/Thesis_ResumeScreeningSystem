@@ -18,7 +18,11 @@ app = FastAPI(title="GYR Resume Screening API")
 # Configure CORS for React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:3000"],
+    allow_origins=[
+        "http://localhost:5173", 
+        "http://localhost:3000",
+        "https://thesis-resume-screening-system.vercel.app" # Add your Vercel URL here
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

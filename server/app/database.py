@@ -18,13 +18,17 @@ from sqlalchemy.orm import sessionmaker, declarative_base
 _ENV_PATH = os.path.join(os.path.dirname(__file__), "..", ".env")
 load_dotenv(dotenv_path=_ENV_PATH)
 
-# ── Connection URL ────────────────────────────────────────────────────────────
-# Primary: PostgreSQL (Supabase) set in .env
-# Fallback: local SQLite for dev environments without a .env file
-DATABASE_URL: str = os.getenv(
-    "DATABASE_URL",
-    "sqlite:///./db.sqlite3",
-)
+# —— Connection URL ——————————————————————————————————————————————————————
+# Primary: PostgreSQL (Supabase) set in Hugging Face Secrets
+# Fallback: local SQLite for dev
+DATABASE_URL: str = os.getenv("DATABASE_URL")
+
+if not DATABASE_URL:
+    DATABASE_URL = "sqlite:///./db.sqlite3"
+    print("[database] WARNING: DATABASE_URL not found, falling back to SQLite")
+# Supabase/PostgreSQL fix: SQLAlchemy requires 'postgresql://' not 'postgres://'
+elif DATABASE_URL.startswith("postgres://"):
+    DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
 # ── SQLAlchemy engine ─────────────────────────────────────────────────────────
 # pool_pre_ping=True — validates the connection before use, recovering
