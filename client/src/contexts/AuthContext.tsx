@@ -40,11 +40,11 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const STORAGE_KEY_TOKEN = 'veridian_token';
-const STORAGE_KEY_USER  = 'veridian_user';
+const STORAGE_KEY_USER = 'veridian_user';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(() => localStorage.getItem(STORAGE_KEY_TOKEN));
-  const [user, setUser]   = useState<AuthUser | null>(() => {
+  const [user, setUser] = useState<AuthUser | null>(() => {
     const raw = localStorage.getItem(STORAGE_KEY_USER);
     return raw ? JSON.parse(raw) : null;
   });
@@ -59,7 +59,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       formData.append('username', employeeNumber);
       formData.append('password', password);
 
-      const res = await fetch('/api/auth/login', {
+      const API_URL = import.meta.env.VITE_API_URL || '';
+      const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: formData.toString(),
