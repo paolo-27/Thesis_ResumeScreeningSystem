@@ -59,7 +59,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       formData.append('username', employeeNumber);
       formData.append('password', password);
 
-      const API_URL = import.meta.env.VITE_API_URL || '';
+      let API_URL = import.meta.env.VITE_API_URL || '';
+      // SAFETY FILTER: If we are not on localhost, force the URL to be https
+      if (API_URL && !API_URL.includes('127.0.0.1') && !API_URL.includes('localhost')) {
+        API_URL = API_URL.replace('http://', 'https://');
+      }
       const res = await fetch(`${API_URL}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
