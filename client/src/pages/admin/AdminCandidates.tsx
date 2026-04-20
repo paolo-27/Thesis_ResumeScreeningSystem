@@ -60,17 +60,25 @@ export default function AdminCandidates() {
             const fetchedJobs: JobPosting[] = jobsRes.data;
             setJobs(fetchedJobs);
 
-            // Fetch live GYR stats for every job in parallel
-            const statsEntries = await Promise.all(
-                fetchedJobs.map(async (job) => {
-                    try {
-                        const statsRes = await api.get(`/api/jobs/${job.id}/stats`);
-                        return [job.id, statsRes.data] as const;
-                    } catch {
-                        return [job.id, { total: 0, green: 0, yellow: 0, red: 0 }] as const;
+            // Calculate per-job stats locally to avoid N+1 queries
+            const statsEntries = fetchedJobs.map((job) => {
+                const jobCands = candidatesRes.data.filter((c: any) => c.applied_job_id === job.id);
+                const total = jobCands.length;
+                
+                let green = 0, yellow = 0, red = 0;
+                jobCands.forEach((c: any) => {
+                    if (c.gyr_tier === 'Green') green++;
+                    else if (c.gyr_tier === 'Yellow') yellow++;
+                    else if (c.gyr_tier === 'Red') red++;
+                    else {
+                        if (c.probability_score >= 0.7) green++;
+                        else if (c.probability_score >= 0.4) yellow++;
+                        else red++;
                     }
-                })
-            );
+                });
+                
+                return [job.id, { total, green, yellow, red }];
+            });
             setJobStats(Object.fromEntries(statsEntries));
         } catch (error) {
             console.error('Error fetching data:', error);

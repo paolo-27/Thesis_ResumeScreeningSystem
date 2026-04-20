@@ -67,17 +67,26 @@ export default function AdminDashboard() {
         setStats({ activeJobs, totalCandidates, averageMatchScore: avgScore, pendingReviews });
         setRecentJobs(sortedJobs);
 
-        // Fetch live per-job stats for the dashboard cards
-        const statsEntries = await Promise.all(
-          sortedJobs.map(async (job: any) => {
-            try {
-              const statsRes = await api.get(`/api/jobs/${job.id}/stats`);
-              return [job.id, statsRes.data] as const;
-            } catch {
-              return [job.id, { total: 0, green: 0, yellow: 0, red: 0 }] as const;
+        // Calculate per-job stats locally from the fetched candidates to avoid N+1 queries
+        const statsEntries = sortedJobs.map((job: any) => {
+          const jobCands = candidates.filter((c: any) => c.applied_job_id === job.id);
+          const total = jobCands.length;
+          
+          let green = 0, yellow = 0, red = 0;
+          jobCands.forEach((c: any) => {
+            if (c.gyr_tier === 'Green') green++;
+            else if (c.gyr_tier === 'Yellow') yellow++;
+            else if (c.gyr_tier === 'Red') red++;
+            else {
+              // fallback if gyr_tier is unexpectedly missing
+              if (c.probability_score >= 0.7) green++;
+              else if (c.probability_score >= 0.4) yellow++;
+              else red++;
             }
-          })
-        );
+          });
+          
+          return [job.id, { total, green, yellow, red }];
+        });
         setJobStats(Object.fromEntries(statsEntries));
       } catch (error) {
         console.error("Error fetching dashboard data:", error);
@@ -85,9 +94,8 @@ export default function AdminDashboard() {
     };
 
     fetchData();
-    // Poll every 3 seconds for real-time updates
-    const interval = setInterval(fetchData, 3000);
-    return () => clearInterval(interval);
+    // Fetch once on mount. Polling every 3 seconds causes excessive database load.
+    // If real-time updates are needed, consider websockets or a 60-second polling interval.
   }, []);
 
   const statsCards = [

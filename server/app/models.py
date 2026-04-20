@@ -10,7 +10,7 @@ Changes from SQLite version:
 """
 
 from sqlalchemy import Column, String, Integer, Float, ForeignKey, Text, Boolean
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import relationship, deferred
 import uuid
 from .database import Base
 
@@ -75,7 +75,7 @@ class JobPosting(Base):
 
     # SBERT embedding of the full job description + requirements text.
     # Used by pgvector to rank candidates by semantic similarity.
-    embedding           = Column(_VECTOR_TYPE, nullable=True)
+    embedding           = deferred(Column(_VECTOR_TYPE, nullable=True))
 
     candidates = relationship("Candidate", back_populates="job")
 
@@ -97,7 +97,7 @@ class Candidate(Base):
 
     # SBERT embedding of the resume text.
     # Null for rows migrated from SQLite; populated on new submissions.
-    embedding         = Column(_VECTOR_TYPE, nullable=True)
+    embedding         = deferred(Column(_VECTOR_TYPE, nullable=True))
 
     job = relationship("JobPosting", back_populates="candidates")
 
