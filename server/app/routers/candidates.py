@@ -2,7 +2,8 @@ import io
 import mimetypes
 import os
 from fastapi import APIRouter, Depends, HTTPException, File, UploadFile, Form, BackgroundTasks
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
+import requests
 from sqlalchemy.orm import Session
 from starlette.concurrency import run_in_threadpool
 from typing import List, Optional
@@ -10,7 +11,7 @@ from datetime import datetime
 from .. import models, schemas
 from ..database import get_db
 from ..dependencies import get_current_active_user
-from ..services.file_service import extract_text_from_file, save_resume_bytes, UPLOADS_DIR
+from ..services.file_service import extract_text_from_file, save_resume_bytes
 from ..services.ml_service import predict_resume_tier, predict_resume_tier_with_embedding, get_candidate_insights
 from ..services.activity_logger import log_activity
 
@@ -130,25 +131,30 @@ def get_candidate_resume(candidate_id: str, db: Session = Depends(get_db), curre
     if not db_candidate.resume_url:
         raise HTTPException(status_code=404, detail="No resume file found for this candidate")
 
-    # resume_url is stored as a relative path like 'uploads/<id>_<filename>'
-    # Resolve against the uploads directory
-    rel_path = db_candidate.resume_url  # e.g. 'uploads/abc123_resume.pdf'
-    stored_filename = os.path.basename(rel_path)  # 'abc123_resume.pdf'
-    file_path = UPLOADS_DIR / stored_filename
+    # Resolve against Supabase Storage
+    stored_path = db_candidate.resume_url
+    if stored_path.startswith("uploads/"):
+        raise HTTPException(status_code=404, detail="Legacy resume file not found on server")
 
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Resume file not found on server")
+    url = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/resumes/{stored_path}"
+    headers = {
+        "Authorization": f"Bearer {os.getenv('SUPABASE_SERVICE_ROLE_KEY')}",
+        "apikey": os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+    }
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code != 200:
+        raise HTTPException(status_code=404, detail="Resume file not found in storage")
 
-    # Strip the '<candidate_id>_' prefix so the user sees the original filename
-    original_filename = "_".join(stored_filename.split("_")[1:]) if "_" in stored_filename else stored_filename
+    stored_filename = os.path.basename(stored_path)
+    original_filename = stored_filename
 
-    media_type, _ = mimetypes.guess_type(str(file_path))
+    media_type, _ = mimetypes.guess_type(stored_filename)
     media_type = media_type or "application/octet-stream"
 
-    return FileResponse(
-        path=str(file_path),
+    return Response(
+        content=response.content,
         media_type=media_type,
-        filename=original_filename,
         headers={"Content-Disposition": f'inline; filename="{original_filename}"'},
     )
 
@@ -167,16 +173,27 @@ def get_insights(candidate_id: str, db: Session = Depends(get_db), current_user:
     if not db_candidate.resume_url:
         raise HTTPException(status_code=404, detail="No resume file found for this candidate")
 
-    # Resolve file path
-    stored_filename = os.path.basename(db_candidate.resume_url)
-    file_path = UPLOADS_DIR / stored_filename
-    if not file_path.exists():
-        raise HTTPException(status_code=404, detail="Resume file not found on disk")
+    # Resolve file path from Supabase Storage
+    stored_path = db_candidate.resume_url
+    if stored_path.startswith("uploads/"):
+        raise HTTPException(status_code=404, detail="Legacy resume file not found on server")
+
+    url = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/resumes/{stored_path}"
+    headers = {
+        "Authorization": f"Bearer {os.getenv('SUPABASE_SERVICE_ROLE_KEY')}",
+        "apikey": os.getenv('SUPABASE_SERVICE_ROLE_KEY')
+    }
+    response = requests.get(url, headers=headers)
+    
+    if response.status_code != 200:
+        raise HTTPException(status_code=404, detail="Resume file not found in storage")
 
     # Extract resume text directly from disk (no UploadFile needed)
-    resume_bytes = file_path.read_bytes()
+    resume_bytes = response.content
     resume_text = ""
+    stored_filename = os.path.basename(stored_path)
     fname = stored_filename.lower()
+    
     if fname.endswith(".pdf"):
         reader = PyPDF2.PdfReader(io.BytesIO(resume_bytes))
         for page in reader.pages:

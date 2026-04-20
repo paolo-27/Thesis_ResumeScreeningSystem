@@ -1,14 +1,19 @@
 import io
 import os
-from pathlib import Path
-from fastapi import UploadFile
+import requests
+from dotenv import load_dotenv
+from fastapi import UploadFile, HTTPException
 import PyPDF2
 from docx import Document
 
-# Directory where uploaded resume files are persisted
-UPLOADS_DIR = Path(__file__).resolve().parents[2] / "uploads"
-UPLOADS_DIR.mkdir(exist_ok=True)
+# Load env variables to get Supabase credentials
+_ENV_PATH = os.path.join(os.path.dirname(__file__), "..", "..", ".env")
+load_dotenv(dotenv_path=_ENV_PATH)
 
+SUPABASE_URL = os.getenv("SUPABASE_URL")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+
+BUCKET_NAME = "resumes"
 
 async def extract_text_from_file(file: UploadFile) -> str:
     """
@@ -50,10 +55,24 @@ async def extract_text_from_file(file: UploadFile) -> str:
 
 def save_resume_bytes(candidate_id: str, filename: str, data: bytes) -> str:
     """
-    Saves raw file bytes to the uploads directory.
-    Returns the relative path stored in the DB (e.g. 'uploads/<id>_<filename>').
+    Saves raw file bytes to Supabase Storage.
+    Returns the storage path (e.g. 'candidate_id/filename').
     """
-    safe_filename = f"{candidate_id}_{os.path.basename(filename)}"
-    dest = UPLOADS_DIR / safe_filename
-    dest.write_bytes(data)
-    return f"uploads/{safe_filename}"
+    if not SUPABASE_URL or not SUPABASE_KEY:
+        raise RuntimeError("Supabase credentials are not configured.")
+        
+    safe_filename = f"{candidate_id}/{os.path.basename(filename)}"
+    url = f"{SUPABASE_URL}/storage/v1/object/{BUCKET_NAME}/{safe_filename}"
+    headers = {
+        "Authorization": f"Bearer {SUPABASE_KEY}",
+        "apikey": SUPABASE_KEY,
+        "Content-Type": "application/octet-stream"
+    }
+    
+    response = requests.post(url, headers=headers, data=data)
+    
+    # HTTP 200 format is successful upload. 400+ means failure.
+    if response.status_code >= 400:
+        raise Exception(f"Failed to upload to Supabase: {response.text}")
+
+    return safe_filename
