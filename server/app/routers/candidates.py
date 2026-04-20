@@ -14,6 +14,7 @@ from ..dependencies import get_current_active_user
 from ..services.file_service import extract_text_from_file, save_resume_bytes
 from ..services.ml_service import predict_resume_tier, predict_resume_tier_with_embedding, get_candidate_insights
 from ..services.activity_logger import log_activity
+from ..services.email_service import send_applicant_status_email
 
 router = APIRouter(
     prefix="/api",
@@ -40,14 +41,19 @@ async def apply_for_job(
     try:
         resume_text = await extract_text_from_file(resume)
     except Exception as e:
+        background_tasks.add_task(send_applicant_status_email, email=email, name=name, status="error", job_title=job.title, details=f"Formatting issue: {str(e)}")
         raise HTTPException(status_code=400, detail=f"Failed to process resume file: {str(e)}")
 
     # Score resume via ML model AND capture the SBERT embedding for pgvector storage.
     # CPU-bound work is offloaded to a thread-pool worker to avoid blocking the event loop.
     job_description = (job.description or "") + " " + (job.requirements or "")
-    prob_score, gyr_tier, resume_embedding = await run_in_threadpool(
-        predict_resume_tier_with_embedding, resume_text, job_description
-    )
+    try:
+        prob_score, gyr_tier, resume_embedding = await run_in_threadpool(
+            predict_resume_tier_with_embedding, resume_text, job_description
+        )
+    except Exception as e:
+        background_tasks.add_task(send_applicant_status_email, email=email, name=name, status="error", job_title=job.title, details=f"We encountered an issue during the screening process: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to screen resume: {str(e)}")
 
     # Snapshot the resume bytes and original filename before entering the
     # threadpool (UploadFile internals must not be accessed from another thread).
@@ -106,6 +112,10 @@ async def apply_for_job(
 
     # Log the activity asynchronously via BackgroundTask under the job owner
     background_tasks.add_task(log_activity, "RESUME_UPLOADED", f"New resume uploaded: {name} applied for {job_title}", job_owner_id)
+
+    # Send success email via BackgroundTask
+    match_percentage = int(prob_score * 100) if prob_score is not None else 0
+    background_tasks.add_task(send_applicant_status_email, email=email, name=name, status="success", job_title=job_title, match_percentage=match_percentage)
 
     return db_candidate
 
