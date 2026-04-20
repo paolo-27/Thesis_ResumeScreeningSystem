@@ -165,7 +165,7 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
                 <div className="w-10 h-10 rounded-full bg-gradient-to-br from-purple-300 to-purple-400 border-2 border-white"></div>
               </div>
               <div>
-                <p className="text-white">Internal HR Management System</p>
+                <p className="text-white">Automated Screening System</p>
                 <p className="text-emerald-200 text-sm">Secure • Role-Based • Auditable</p>
               </div>
             </div>

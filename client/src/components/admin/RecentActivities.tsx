@@ -34,7 +34,7 @@ export default function RecentActivities() {
     };
 
     fetchLogs();
-    
+
     // Poll every 5 seconds to keep the feed live
     const interval = setInterval(fetchLogs, 5000);
     return () => clearInterval(interval);
@@ -85,9 +85,9 @@ export default function RecentActivities() {
         <div className="flex items-center gap-3">
           <AlertDialog>
             <AlertDialogTrigger asChild>
-              <Button 
-                variant="ghost" 
-                size="sm" 
+              <Button
+                variant="ghost"
+                size="sm"
                 className="text-red-600 hover:text-red-700 hover:bg-red-50 h-7 px-2"
                 disabled={logs.length === 0}
               >
@@ -99,8 +99,8 @@ export default function RecentActivities() {
               <AlertDialogHeader>
                 <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
                 <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete all activity log
-                  history from the database.
+                  This action cannot be undone. This will delete all activity log
+                  history from this dashboard.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
@@ -117,7 +117,7 @@ export default function RecentActivities() {
           </div>
         </div>
       </div>
-      
+
       <div className="space-y-4 max-h-[400px] overflow-y-auto pr-2 custom-scrollbar">
         {loading && logs.length === 0 ? (
           <div className="text-center py-4 text-gray-500 text-sm">Loading activities...</div>
