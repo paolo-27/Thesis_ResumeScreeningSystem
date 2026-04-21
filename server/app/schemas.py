@@ -13,6 +13,9 @@ class JobPostingBase(BaseModel):
     requirements: Optional[str] = None
     salary: Optional[str] = None
     parsedRequirements: Optional[str] = None
+    is_deleted: Optional[bool] = False
+    deleted_at: Optional[str] = None
+    deleted_by_id: Optional[str] = None
 
 class JobPostingCreate(JobPostingBase):
     pass
@@ -31,6 +34,9 @@ class CandidateBase(BaseModel):
     status: str = "Pending"
     resume_url: Optional[str] = None
     appliedDate: str
+    is_deleted: Optional[bool] = False
+    deleted_at: Optional[str] = None
+    deleted_by_id: Optional[str] = None
 
 class CandidateCreate(CandidateBase):
     pass

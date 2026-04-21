@@ -121,7 +121,7 @@ async def apply_for_job(
 
 @router.get("/candidates", response_model=List[schemas.Candidate])
 def get_candidates(job_id: Optional[str] = None, skip: int = 0, limit: int = 10000, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    query = db.query(models.Candidate)
+    query = db.query(models.Candidate).filter((models.Candidate.is_deleted == False) | (models.Candidate.is_deleted == None))
     if current_user.role == "HR":
         query = query.join(models.JobPosting).filter(models.JobPosting.created_by_id == current_user.id)
     if job_id:
@@ -133,7 +133,10 @@ def get_candidates(job_id: Optional[str] = None, skip: int = 0, limit: int = 100
 @router.get("/candidates/{candidate_id}/resume")
 def get_candidate_resume(candidate_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
     """Streams the stored resume file (PDF or DOCX) for the given candidate."""
-    db_candidate = db.query(models.Candidate).filter(models.Candidate.id == candidate_id).first()
+    db_candidate = db.query(models.Candidate).filter(
+        models.Candidate.id == candidate_id,
+        ((models.Candidate.is_deleted == False) | (models.Candidate.is_deleted == None))
+    ).first()
     if not db_candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     if current_user.role == "HR" and (not db_candidate.job or db_candidate.job.created_by_id != current_user.id):
@@ -175,7 +178,10 @@ def get_insights(candidate_id: str, db: Session = Depends(get_db), current_user:
     import PyPDF2
     from docx import Document as DocxDocument
 
-    db_candidate = db.query(models.Candidate).filter(models.Candidate.id == candidate_id).first()
+    db_candidate = db.query(models.Candidate).filter(
+        models.Candidate.id == candidate_id,
+        ((models.Candidate.is_deleted == False) | (models.Candidate.is_deleted == None))
+    ).first()
     if not db_candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     if current_user.role == "HR" and (not db_candidate.job or db_candidate.job.created_by_id != current_user.id):
@@ -240,7 +246,10 @@ def get_insights(candidate_id: str, db: Session = Depends(get_db), current_user:
 
 @router.patch("/candidates/{candidate_id}", response_model=schemas.Candidate)
 def update_candidate(candidate_id: str, candidate_update: schemas.CandidateUpdate, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    db_candidate = db.query(models.Candidate).filter(models.Candidate.id == candidate_id).first()
+    db_candidate = db.query(models.Candidate).filter(
+        models.Candidate.id == candidate_id,
+        ((models.Candidate.is_deleted == False) | (models.Candidate.is_deleted == None))
+    ).first()
     if not db_candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     if current_user.role == "HR" and (not db_candidate.job or db_candidate.job.created_by_id != current_user.id):
@@ -261,8 +270,11 @@ def update_candidate(candidate_id: str, candidate_update: schemas.CandidateUpdat
 
 @router.delete("/candidates/{candidate_id}")
 def delete_candidate(candidate_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    """Permanently deletes a single candidate record."""
-    db_candidate = db.query(models.Candidate).filter(models.Candidate.id == candidate_id).first()
+    """Soft deletes a single candidate record."""
+    db_candidate = db.query(models.Candidate).filter(
+        models.Candidate.id == candidate_id,
+        ((models.Candidate.is_deleted == False) | (models.Candidate.is_deleted == None))
+    ).first()
     if not db_candidate:
         raise HTTPException(status_code=404, detail="Candidate not found")
     if current_user.role == "HR" and (not db_candidate.job or db_candidate.job.created_by_id != current_user.id):
@@ -274,6 +286,8 @@ def delete_candidate(candidate_id: str, db: Session = Depends(get_db), current_u
         if job and job.applicantsCount > 0:
             job.applicantsCount -= 1
 
-    db.delete(db_candidate)
+    db_candidate.is_deleted = True
+    db_candidate.deleted_at = datetime.now().isoformat()
+    db_candidate.deleted_by_id = current_user.id
     db.commit()
     return {"message": f"Candidate {candidate_id} deleted successfully"}

@@ -77,6 +77,10 @@ class JobPosting(Base):
     # Used by pgvector to rank candidates by semantic similarity.
     embedding           = deferred(Column(_VECTOR_TYPE, nullable=True))
 
+    is_deleted          = Column(Boolean, default=False, nullable=True)
+    deleted_at          = Column(String, nullable=True)
+    deleted_by_id       = Column(String, ForeignKey("users.id"), nullable=True)
+
     candidates = relationship("Candidate", back_populates="job")
 
 
@@ -98,6 +102,10 @@ class Candidate(Base):
     # SBERT embedding of the resume text.
     # Null for rows migrated from SQLite; populated on new submissions.
     embedding         = deferred(Column(_VECTOR_TYPE, nullable=True))
+
+    is_deleted        = Column(Boolean, default=False, nullable=True)
+    deleted_at        = Column(String, nullable=True)
+    deleted_by_id     = Column(String, ForeignKey("users.id"), nullable=True)
 
     job = relationship("JobPosting", back_populates="candidates")
 

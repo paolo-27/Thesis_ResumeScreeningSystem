@@ -8,6 +8,7 @@ from ..dependencies import get_current_active_user
 from pydantic import BaseModel
 from ..services.jd_parser import parse_job_description
 from ..services.activity_logger import log_activity
+from datetime import datetime
 
 router = APIRouter(
     prefix="/api/jobs",
@@ -17,7 +18,7 @@ router = APIRouter(
 
 @router.get("/", response_model=List[schemas.JobPosting])
 def read_jobs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    query = db.query(models.JobPosting)
+    query = db.query(models.JobPosting).filter((models.JobPosting.is_deleted == False) | (models.JobPosting.is_deleted == None))
     if current_user.role == "HR":
         query = query.filter(models.JobPosting.created_by_id == current_user.id)
     jobs = query.offset(skip).limit(limit).all()
@@ -26,12 +27,18 @@ def read_jobs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db), cu
 @router.get("/public", response_model=List[schemas.JobPosting])
 def read_public_jobs(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
     """Public endpoint for the applicant landing page to see all Active jobs."""
-    jobs = db.query(models.JobPosting).filter(models.JobPosting.status == "Active").offset(skip).limit(limit).all()
+    jobs = db.query(models.JobPosting).filter(
+        models.JobPosting.status == "Active",
+        ((models.JobPosting.is_deleted == False) | (models.JobPosting.is_deleted == None))
+    ).offset(skip).limit(limit).all()
     return jobs
 
 @router.get("/{job_id}", response_model=schemas.JobPosting)
 def read_job(job_id: str, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    job = db.query(models.JobPosting).filter(models.JobPosting.id == job_id).first()
+    job = db.query(models.JobPosting).filter(
+        models.JobPosting.id == job_id,
+        ((models.JobPosting.is_deleted == False) | (models.JobPosting.is_deleted == None))
+    ).first()
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     if current_user.role == "HR" and job.created_by_id != current_user.id:
@@ -44,7 +51,10 @@ def get_job_stats(job_id: str, db: Session = Depends(get_db), current_user: mode
     Returns real candidate counts broken down by GYR tier and status for a job.
     Replaces any Math.random() mock data in the frontend.
     """
-    job = db.query(models.JobPosting).filter(models.JobPosting.id == job_id).first()
+    job = db.query(models.JobPosting).filter(
+        models.JobPosting.id == job_id,
+        ((models.JobPosting.is_deleted == False) | (models.JobPosting.is_deleted == None))
+    ).first()
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     if current_user.role == "HR" and job.created_by_id != current_user.id:
@@ -54,6 +64,7 @@ def get_job_stats(job_id: str, db: Session = Depends(get_db), current_user: mode
     tier_counts = (
         db.query(models.Candidate.gyr_tier, func.count(models.Candidate.id))
         .filter(models.Candidate.applied_job_id == job_id)
+        .filter((models.Candidate.is_deleted == False) | (models.Candidate.is_deleted == None))
         .group_by(models.Candidate.gyr_tier)
         .all()
     )
@@ -63,6 +74,7 @@ def get_job_stats(job_id: str, db: Session = Depends(get_db), current_user: mode
     status_counts = (
         db.query(models.Candidate.status, func.count(models.Candidate.id))
         .filter(models.Candidate.applied_job_id == job_id)
+        .filter((models.Candidate.is_deleted == False) | (models.Candidate.is_deleted == None))
         .group_by(models.Candidate.status)
         .all()
     )
@@ -117,7 +129,10 @@ def create_job(job: schemas.JobPostingCreate, background_tasks: BackgroundTasks,
 
 @router.delete("/{job_id}")
 def delete_job(job_id: str, background_tasks: BackgroundTasks, db: Session = Depends(get_db), current_user: models.User = Depends(get_current_active_user)):
-    job = db.query(models.JobPosting).filter(models.JobPosting.id == job_id).first()
+    job = db.query(models.JobPosting).filter(
+        models.JobPosting.id == job_id,
+        ((models.JobPosting.is_deleted == False) | (models.JobPosting.is_deleted == None))
+    ).first()
     if job is None:
         raise HTTPException(status_code=404, detail="Job not found")
     if current_user.role == "HR" and job.created_by_id != current_user.id:
@@ -129,10 +144,17 @@ def delete_job(job_id: str, background_tasks: BackgroundTasks, db: Session = Dep
     deleted_count = (
         db.query(models.Candidate)
         .filter(models.Candidate.applied_job_id == job_id)
-        .delete(synchronize_session="fetch")
+        .filter((models.Candidate.is_deleted == False) | (models.Candidate.is_deleted == None))
+        .update({
+            "is_deleted": True,
+            "deleted_at": datetime.now().isoformat(),
+            "deleted_by_id": current_user.id
+        }, synchronize_session=False)
     )
 
-    db.delete(job)
+    job.is_deleted = True
+    job.deleted_at = datetime.now().isoformat()
+    job.deleted_by_id = current_user.id
     db.commit()
     
     background_tasks.add_task(log_activity, "JOB_DELETED", f"Job posting deleted: {job.title}", current_user.id)
