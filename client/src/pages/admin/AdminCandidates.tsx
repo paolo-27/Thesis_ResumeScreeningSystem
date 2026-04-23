@@ -273,6 +273,8 @@ export default function AdminCandidates() {
                 <div className="relative max-w-md">
                     <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                     <Input
+                        id="search-jobs"
+                        name="searchQuery"
                         placeholder="Search job postings..."
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.target.value)}
