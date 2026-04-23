@@ -12,7 +12,7 @@ export default function AdminLayout() {
         <div className="flex min-h-screen bg-gray-50 flex-col md:flex-row">
             {/* Mobile Header */}
             <div className="md:hidden flex items-center justify-between bg-white border-b border-gray-200 p-4 sticky top-0 z-30 shadow-sm">
-                <span className="font-bold text-lg text-emerald-600">Admin</span>
+                <span className="font-bold text-lg text-emerald-600">Veridian</span>
                 <button onClick={() => setSidebarOpen(true)} className="p-2 text-gray-600 hover:bg-gray-100 rounded-md transition-colors">
                     <Menu className="w-6 h-6" />
                 </button>

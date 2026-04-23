@@ -254,13 +254,13 @@ export default function AdminCandidates() {
 
     return (
         <div className="p-8 max-w-7xl mx-auto">
-            <div className="flex justify-between items-center mb-8">
+            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-center mb-8 gap-4">
                 <div>
                     <h1 className="text-gray-900 mb-2 font-bold text-3xl">Candidates</h1>
                     <p className="text-gray-500">Manage job postings and review active roles.</p>
                 </div>
                 <Button
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-2"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white flex items-center justify-center gap-2 w-full sm:w-auto"
                     onClick={() => navigate('/admin/jobs')}
                 >
                     <Plus className="w-4 h-4" />
