@@ -124,6 +124,8 @@ export default function ApplicantLanding() {
                     <div className="relative max-w-2xl mx-auto sm:mx-0">
                         <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                         <Input
+                            id="public-job-search"
+                            name="searchQuery"
                             type="text"
                             placeholder="Search jobs by title, company, or location..."
                             value={searchQuery}

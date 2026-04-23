@@ -133,16 +133,16 @@ export default function UserManagement() {
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-8">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8 gap-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-900">User Management</h1>
           <p className="text-sm text-gray-500 mt-1">Manage internal HR accounts and access levels</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" onClick={fetchUsers} className="gap-2">
+        <div className="flex flex-wrap gap-2 w-full sm:w-auto">
+          <Button variant="outline" onClick={fetchUsers} className="gap-2 flex-1 sm:flex-none">
             <RefreshCw className="w-4 h-4" /> Refresh
           </Button>
-          <Button onClick={() => setShowCreateModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2">
+          <Button onClick={() => setShowCreateModal(true)} className="bg-emerald-600 hover:bg-emerald-700 text-white gap-2 flex-1 sm:flex-none">
             <Plus className="w-4 h-4" /> Add User
           </Button>
         </div>
