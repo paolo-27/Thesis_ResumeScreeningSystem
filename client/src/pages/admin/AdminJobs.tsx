@@ -158,7 +158,7 @@ export default function AdminJobs() {
               </div>
             </Card>
 
-            <div className="flex gap-4 pt-4">
+            <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <Button
                 type="submit"
                 className="flex-1 bg-emerald-600 hover:bg-emerald-700 text-white"
