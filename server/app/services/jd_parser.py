@@ -41,7 +41,7 @@ class JobDescriptionParser:
             text = re.sub(rf'(?i)({header})', r'\n\1\n', text)
             
         # 3. Convert inline horizontal separators ( - or • ) into actual new vertical bullets.
-        text = re.sub(r'\s+[-•]\s+', '\n- ', text)
+        text = re.sub(r'\s+[•]\s+', '\n- ', text)
         
         return text
 
@@ -113,17 +113,15 @@ class JobDescriptionParser:
                     state_changed = True
                 elif any(re.search(p, header_check) for p in desc_triggers):
                     current_state = 'DESCRIPTION'
+                    state_changed = True
             
-            if state_changed and current_state != 'DESCRIPTION':
+            if state_changed:
                 continue 
             
             if current_state == 'DESCRIPTION':
-                if is_bullet:
-                    requirements_raw.append(line)
-                else:
-                    clean_desc_line = re.sub(r'^[-•*\u2022\u2023\u25E6\u2043\u2219]\s*|^\d+\.\s*', '', line).strip()
-                    if clean_desc_line:
-                        description_lines.append(clean_desc_line)
+                clean_desc_line = re.sub(r'^[-•*\u2022\u2023\u25E6\u2043\u2219]\s*|^\d+\.\s*', '', line).strip()
+                if clean_desc_line:
+                    description_lines.append(clean_desc_line)
                     
             elif current_state == 'REQUIREMENTS':
                 if line.strip().endswith(':'):
