@@ -47,16 +47,18 @@ class JobDescriptionParser:
 
     def _extract_salary(self, text: str) -> str:
         patterns = [
-            r'(?i)(?:salary|compensation|pay|rate)?:?\s*(?:range(?:s)?\s*(?:is|are)?\s*)?(?:PHP|P|₱|Php)?\s*(\d{2,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:k|K)?\s*(?:-|to|–|—)\s*(?:PHP|P|₱|Php)?\s*\d{2,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:k|K)?)',
-            r'(?i)(?:PHP|P|₱|Php)\s*(\d{2,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:k|K)?\s*(?:-|to|–|—)\s*(?:PHP|P|₱|Php)?\s*\d{2,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:k|K)?)',
-            r'(?i)(?:salary|compensation|pay|rate)?:?\s*(?:range\s*is\s*)?(?:PHP|P|₱|Php)?\s*(\d{2,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:k|K)?)'
+            # 1. Salary keyword + optional PHP + Range
+            r'(?i)(?:salary|compensation|pay|rate)\s*:?\s*(?:range(?:s)?\s*(?:is|are)?\s*)?(?:PHP|P|₱|Php)?\s*(\d{2,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:k|K)?\s*(?:-|to|–|—)\s*(?:PHP|P|₱|Php)?\s*\d{2,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:k|K)?)',
+            # 2. PHP symbol + Range or Single Number (e.g., PHP 80,000 - PHP 100,000 or PHP 80,000)
+            r'(?i)(?:PHP|P|₱|Php)\s*(\d{2,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:k|K)?(?:\s*(?:-|to|–|—)\s*(?:PHP|P|₱|Php)?\s*\d{2,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:k|K)?)?)',
+            # 3. Salary keyword + optional PHP + Single Number
+            r'(?i)(?:salary|compensation|pay|rate)\s*:?\s*(?:range\s*is\s*)?(?:PHP|P|₱|Php)?\s*(\d{2,3}(?:,\d{3})*(?:\.\d{2})?\s*(?:k|K)?)'
         ]
         
         for pattern in patterns:
             match = re.search(pattern, text)
             if match:
-                val = match.group(0).strip()
-                val = re.sub(r'(?i)^(salary|compensation|pay|rate)?:?\s*(?:range(?:s)?\s*(?:is|are)?\s*)?', '', val).strip()
+                val = match.group(1).strip()
                 if not val.upper().startswith('PHP') and not val.upper().startswith('P') and not val.startswith('₱'):
                     val = "PHP " + val
                 return val
@@ -116,9 +118,12 @@ class JobDescriptionParser:
                 continue 
             
             if current_state == 'DESCRIPTION':
-                clean_desc_line = re.sub(r'^[-•*\u2022\u2023\u25E6\u2043\u2219]\s*|^\d+\.\s*', '', line).strip()
-                if clean_desc_line:
-                    description_lines.append(clean_desc_line)
+                if is_bullet:
+                    requirements_raw.append(line)
+                else:
+                    clean_desc_line = re.sub(r'^[-•*\u2022\u2023\u25E6\u2043\u2219]\s*|^\d+\.\s*', '', line).strip()
+                    if clean_desc_line:
+                        description_lines.append(clean_desc_line)
                     
             elif current_state == 'REQUIREMENTS':
                 if line.strip().endswith(':'):
