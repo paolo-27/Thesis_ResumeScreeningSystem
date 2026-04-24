@@ -290,8 +290,8 @@ export default function AdminCandidates() {
                     const { total: candidatesCount, green: greenCount, yellow: yellowCount, red: redCount } = stats;
 
                     return (
-                        <Card key={job.id} className="border-gray-200 hover:shadow-lg transition-all duration-200 cursor-pointer group relative">
-                            <div className="p-6">
+                        <Card key={job.id} className="border-gray-200 hover:shadow-lg transition-all duration-200 cursor-pointer group relative h-full flex flex-col">
+                            <div className="p-6 flex flex-col flex-1">
                                 <div className="flex items-start justify-between mb-4 gap-4">
                                     <div className="flex-1 min-w-0">
                                         <h3 className="text-gray-900 font-bold mb-1 group-hover:text-emerald-600 transition-colors">
@@ -356,7 +356,7 @@ export default function AdminCandidates() {
                                         setSelectedJobId(job.id);
                                         navigate(`/admin/candidates?jobId=${job.id}`);
                                     }}
-                                    className="w-full bg-emerald-600 hover:bg-emerald-700 group-hover:bg-emerald-700 text-white"
+                                    className="w-full bg-emerald-600 hover:bg-emerald-700 group-hover:bg-emerald-700 text-white mt-auto"
                                 >
                                     View Rankings
                                     <ArrowRight className="w-4 h-4 ml-2" />
