@@ -44,8 +44,7 @@ try:
     print(f"[ml_service] XGBoost classifier loaded | expects {classifier.n_features_in_} features")
 
     # 3. SBERT model (all-MiniLM-L6-v2 → 384-dim embeddings)
-    #    local_files_only=True prevents any network request (avoids errno -3 offline)
-    sbert = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
+    sbert = SentenceTransformer("all-MiniLM-L6-v2")
     print("[ml_service] SBERT model loaded")
 
     models_loaded = True
