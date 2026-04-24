@@ -35,12 +35,22 @@ jobs:
           rsync -a --delete \
             --exclude '.git/' \
             --exclude '.gitattributes' \
+            --exclude 'model/***' \
+            --exclude '*.pkl' \
+            --exclude '*.joblib' \
+            --exclude '*.pt' \
+            --exclude '*.bin' \
+            --exclude '*.onnx' \
             server/ /tmp/hf-space/
 
           cd /tmp/hf-space
-
-
-
+          echo "Fail-fast check for forbidden artifacts:"
+          forbidden="$(find . -type f \( -name '*.pkl' -o -name '*.joblib' -o -name '*.pt' -o -name '*.bin' -o -name '*.onnx' \) -print || true)"
+          if [ -n "$forbidden" ]; then
+            echo "ERROR: forbidden artifacts detected in snapshot:"
+            echo "$forbidden"
+            exit 1
+          fi
           echo "Largest files in snapshot:"
           find . -type f -printf '%s\t%p\n' | sort -nr | head -n 20
 
