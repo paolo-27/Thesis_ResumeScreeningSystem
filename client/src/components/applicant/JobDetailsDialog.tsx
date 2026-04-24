@@ -275,7 +275,7 @@ export function JobDetailsDialog({
                     <h3 className="text-emerald-700 mb-1">
                       Application Form
                     </h3>
-                    <p className="text-sm text-gray-600">
+                    <p className="text-sm text-gray-600 break-all">
                       Fill in your details to apply for{" "}
                       {job.title}
                     </p>

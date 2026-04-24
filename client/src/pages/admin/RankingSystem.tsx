@@ -92,8 +92,8 @@ export default function RankingSystem({
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Job Postings
         </Button>
-        <h1 className="text-gray-900 mb-2">{jobData.title}</h1>
-        <p className="text-gray-500">
+        <h1 className="text-gray-900 mb-2 break-all">{jobData.title}</h1>
+        <p className="text-gray-500 break-all">
           {jobData.department} • {jobData.totalCandidates}{" "}
           candidates ranked by XGBoost algorithm
         </p>

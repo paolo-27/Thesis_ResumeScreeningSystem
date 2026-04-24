@@ -772,7 +772,7 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                             <div className="h-8 w-px bg-gray-300" />
                             <div className="flex items-center gap-3">
                                 <FileText className="w-5 h-5 text-gray-600" />
-                                <h2 className="text-gray-900">
+                                <h2 className="text-gray-900 truncate max-w-[200px] sm:max-w-[400px]">
                                     {originalFilename || `${candidate.name}_Resume`}
                                 </h2>
                                 <Badge className={`${rankColor.bg} ${rankColor.text}`}>
