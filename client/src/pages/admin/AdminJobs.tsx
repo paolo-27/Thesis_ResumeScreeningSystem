@@ -80,6 +80,7 @@ export default function AdminJobs() {
                   onChange={(e) => setJobTitle(e.target.value)}
                   className="border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
                   required
+                  maxLength={60}
                 />
               </div>
 
@@ -94,6 +95,7 @@ export default function AdminJobs() {
                   onChange={(e) => setDepartment(e.target.value)}
                   className="border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
                   required
+                  maxLength={20}
                 />
               </div>
             </div>
@@ -110,6 +112,7 @@ export default function AdminJobs() {
                   onChange={(e) => setLocation(e.target.value)}
                   className="border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
                   required
+                  maxLength={20}
                 />
               </div>
 
@@ -124,6 +127,7 @@ export default function AdminJobs() {
                   onChange={(e) => setEmploymentType(e.target.value)}
                   className="border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
                   required
+                  maxLength={20}
                 />
               </div>
             </div>
