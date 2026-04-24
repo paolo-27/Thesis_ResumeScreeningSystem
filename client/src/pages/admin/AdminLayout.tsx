@@ -9,7 +9,7 @@ export default function AdminLayout() {
     const [sidebarOpen, setSidebarOpen] = useState(false);
 
     return (
-        <div className="flex min-h-screen bg-gray-50 flex-col md:flex-row">
+        <div className="flex h-screen bg-gray-50 flex-col md:flex-row overflow-hidden">
             {/* Mobile Header */}
             <div className="md:hidden flex items-center justify-between bg-white border-b border-gray-200 p-4 sticky top-0 z-30 shadow-sm">
                 <span className="font-bold text-lg text-emerald-600">Veridian</span>
@@ -34,7 +34,7 @@ export default function AdminLayout() {
             </div>
 
             {/* Main Content */}
-            <main className="flex-1 w-full overflow-hidden p-4 md:p-8">
+            <main className="flex-1 w-full overflow-y-auto overflow-x-hidden p-4 md:p-8">
                 <Outlet />
             </main>
         </div>

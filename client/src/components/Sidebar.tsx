@@ -47,7 +47,7 @@ export default function Sidebar({ onLogout, onMobileClose }: SidebarProps) {
         : '?';
 
     return (
-        <div className="w-64 bg-white border-r border-gray-200 flex flex-col min-h-screen">
+        <div className="w-64 bg-white border-r border-gray-200 flex flex-col h-full overflow-y-auto">
             <div className="p-6 border-b border-gray-200 flex items-center justify-between">
                 <VeridianLogo className="h-8" />
                 {onMobileClose && (
