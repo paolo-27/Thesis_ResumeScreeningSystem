@@ -290,14 +290,14 @@ export default function AdminCandidates() {
                     const { total: candidatesCount, green: greenCount, yellow: yellowCount, red: redCount } = stats;
 
                     return (
-                        <Card key={job.id} className="border-gray-200 hover:shadow-lg transition-all duration-200 cursor-pointer group relative h-full flex flex-col">
-                            <div className="p-6 flex flex-col flex-1">
-                                <div className="flex items-start justify-between mb-4 gap-4">
+                        <Card key={job.id} className="border-gray-200 hover:shadow-lg transition-all duration-200 cursor-pointer group relative h-full flex flex-col overflow-hidden">
+                            <div className="p-6 flex flex-col flex-1 overflow-hidden">
+                                <div className="flex items-start justify-between mb-4 gap-4 w-full">
                                     <div className="flex-1 min-w-0">
-                                        <h3 className="text-gray-900 font-bold mb-1 group-hover:text-emerald-600 transition-colors break-words">
+                                        <h3 className="text-gray-900 font-bold mb-1 group-hover:text-emerald-600 transition-colors break-all">
                                             {job.title}
                                         </h3>
-                                        <p className="text-sm text-gray-500 break-words">{job.department}</p>
+                                        <p className="text-sm text-gray-500 break-all">{job.department}</p>
                                     </div>
                                     <div className="flex items-start gap-2 flex-shrink-0 pt-0.5">
                                         <Badge
