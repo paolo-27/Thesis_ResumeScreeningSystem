@@ -10,6 +10,17 @@ import {
 } from 'lucide-react';
 import VeridianLogo from '../pages/admin/auth/VeridianLogo';
 import { useAuth } from '../contexts/AuthContext';
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+    AlertDialogTrigger,
+} from "./ui/alert-dialog";
 
 interface SidebarProps {
     onLogout?: () => void;
@@ -102,13 +113,30 @@ export default function Sidebar({ onLogout, onMobileClose }: SidebarProps) {
                     <User className="w-5 h-5" />
                     <span>Profile</span>
                 </NavLink>
-                <button
-                    onClick={onLogout}
-                    className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
-                >
-                    <LogOut className="w-5 h-5" />
-                    <span>Logout</span>
-                </button>
+                <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                        <button
+                            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-gray-600 hover:bg-red-50 hover:text-red-600 transition-colors"
+                        >
+                            <LogOut className="w-5 h-5" />
+                            <span>Logout</span>
+                        </button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent className="w-[90vw] max-w-md">
+                        <AlertDialogHeader>
+                            <AlertDialogTitle>Ready to leave?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                                Are you sure you want to log out of your account?
+                            </AlertDialogDescription>
+                        </AlertDialogHeader>
+                        <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction onClick={onLogout} className="bg-red-600 hover:bg-red-700 text-white">
+                                Log out
+                            </AlertDialogAction>
+                        </AlertDialogFooter>
+                    </AlertDialogContent>
+                </AlertDialog>
             </div>
         </div>
     );
