@@ -22,6 +22,18 @@ classifier_path = os.path.join(MODEL_DIR, "trained_xgb_model.json")
 # Load models globally (once on startup)
 # ---------------------------------------------------------------------------
 try:
+    hf_repo_id = os.environ.get("HF_MODEL_REPO_ID")
+    if hf_repo_id:
+        from huggingface_hub import hf_hub_download
+        repo_type = os.environ.get("HF_MODEL_REPO_TYPE", "space")
+        os.makedirs(MODEL_DIR, exist_ok=True)
+        if not os.path.exists(vectorizer_path):
+            print(f"[ml_service] Downloading vectorizer from {hf_repo_id} ({repo_type})...")
+            hf_hub_download(repo_id=hf_repo_id, filename="tfidf_vectorizer.pkl", repo_type=repo_type, local_dir=MODEL_DIR)
+        if not os.path.exists(classifier_path):
+            print(f"[ml_service] Downloading classifier from {hf_repo_id} ({repo_type})...")
+            hf_hub_download(repo_id=hf_repo_id, filename="trained_xgb_model.json", repo_type=repo_type, local_dir=MODEL_DIR)
+
     # 1. TF-IDF vectorizer (sklearn, joblib)
     vectorizer = joblib.load(vectorizer_path)
     print(f"[ml_service] TF-IDF vectorizer loaded | vocab={len(vectorizer.vocabulary_)} features")
