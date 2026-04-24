@@ -188,32 +188,32 @@ export function JobDetailsDialog({
               <DialogHeader>
                 <div className="flex justify-between items-start">
                   <div className="flex-1">
-                    <DialogTitle className="text-2xl text-emerald-700 mb-2">
+                    <DialogTitle className="text-2xl text-emerald-700 mb-2 break-all">
                       {job.title}
                     </DialogTitle>
                     <DialogDescription className="space-y-2" asChild>
                       <div className="space-y-2 mt-2">
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <Building2 className="w-4 h-4" />
-                          <span>{job.company}</span>
+                        <div className="flex items-start gap-2 text-gray-600">
+                          <Building2 className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          <span className="break-all min-w-0">{job.company}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <MapPin className="w-4 h-4" />
-                          <span>{job.location}</span>
+                        <div className="flex items-start gap-2 text-gray-600">
+                          <MapPin className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          <span className="break-all min-w-0">{job.location}</span>
                         </div>
-                        <div className="flex items-center gap-2 text-gray-600">
-                          <Coins className="w-4 h-4" />
-                          <span>Salary: {displaySalary}</span>
+                        <div className="flex items-start gap-2 text-gray-600">
+                          <Coins className="w-4 h-4 mt-0.5 flex-shrink-0" />
+                          <span className="break-all min-w-0">Salary: {displaySalary}</span>
                         </div>
                         <div className="flex flex-wrap gap-2 pt-1">
-                          <Badge className="bg-emerald-100 text-emerald-700">
+                          <Badge className="bg-emerald-100 text-emerald-700 max-w-full break-all whitespace-normal text-left">
                             {job.type}
                           </Badge>
                           <Badge
                             variant="outline"
-                            className="border-emerald-200 text-emerald-700"
+                            className="border-emerald-200 text-emerald-700 max-w-full break-all whitespace-normal text-left"
                           >
-                            <Coins className="w-3 h-3 mr-1" />
+                            <Coins className="w-3 h-3 mr-1 flex-shrink-0 mt-0.5" />
                             {displaySalary}
                           </Badge>
                         </div>
@@ -230,7 +230,7 @@ export function JobDetailsDialog({
                     <h3 className="text-emerald-700 mb-2 font-semibold">
                       Job Description
                     </h3>
-                    <p className="text-gray-600 leading-relaxed whitespace-pre-wrap">
+                    <p className="text-gray-600 leading-relaxed whitespace-pre-wrap break-all">
                       {job.description}
                     </p>
                   </div>
@@ -250,7 +250,7 @@ export function JobDetailsDialog({
                             <span className="text-emerald-600 mt-1">
                               •
                             </span>
-                            <span>{req}</span>
+                            <span className="break-all min-w-0">{req}</span>
                           </li>
                         ))}
                       </ul>
@@ -506,11 +506,11 @@ export function JobDetailsDialog({
               <div>
                 <div>
                   Thank you for applying for the{" "}
-                  <span className="text-emerald-700">
+                  <span className="text-emerald-700 break-all">
                     {job.title}
                   </span>{" "}
                   position at{" "}
-                  <span className="text-emerald-700">
+                  <span className="text-emerald-700 break-all">
                     {job.company}
                   </span>
                   .
