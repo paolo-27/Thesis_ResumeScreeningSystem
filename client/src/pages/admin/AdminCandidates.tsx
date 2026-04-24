@@ -316,7 +316,7 @@ export default function AdminCandidates() {
                                     </div>
                                 </div>
 
-                                <div className="flex items-center gap-2 text-sm text-gray-500 mb-4">
+                                <div className="flex items-center gap-2 text-sm text-gray-500 mb-4 mt-auto">
                                     <Calendar className="w-4 h-4" />
                                     <span>Posted {formatDate(job.postedDate)}</span>
                                 </div>
@@ -356,7 +356,7 @@ export default function AdminCandidates() {
                                         setSelectedJobId(job.id);
                                         navigate(`/admin/candidates?jobId=${job.id}`);
                                     }}
-                                    className="w-full bg-emerald-600 hover:bg-emerald-700 group-hover:bg-emerald-700 text-white mt-auto"
+                                    className="w-full bg-emerald-600 hover:bg-emerald-700 group-hover:bg-emerald-700 text-white"
                                 >
                                     View Rankings
                                     <ArrowRight className="w-4 h-4 ml-2" />
