@@ -59,8 +59,8 @@ export function JobDetailsDialog({
     resume: null as File | null,
     termsAccepted: false,
   });
-  const [showConfirmation, setShowConfirmation] =
-    useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>(
     {},
   );
@@ -114,6 +114,7 @@ export function JobDetailsDialog({
 
     if (validateForm() && job) {
       try {
+        setIsSubmitting(true);
         const submissionData = new FormData();
         submissionData.append("name", formData.fullName);
         submissionData.append("email", formData.email);
@@ -145,6 +146,8 @@ export function JobDetailsDialog({
         console.error("Failed to submit application", error);
         // Fallback for user experience, though minimal
         alert("There was an error submitting your application. Please try again.");
+      } finally {
+        setIsSubmitting(false);
       }
     }
   };
@@ -475,9 +478,17 @@ export function JobDetailsDialog({
                     </Button>
                     <Button
                       type="submit"
-                      className="flex-1 bg-emerald-600 hover:bg-emerald-700"
+                      disabled={isSubmitting}
+                      className="flex-1 bg-emerald-600 hover:bg-emerald-700 flex items-center justify-center gap-2"
                     >
-                      Submit Application
+                      {isSubmitting ? (
+                        <>
+                          <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          Submitting...
+                        </>
+                      ) : (
+                        "Submit Application"
+                      )}
                     </Button>
                   </div>
                 </form>
