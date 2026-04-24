@@ -1,5 +1,5 @@
-model/
-*.pkl
+# model/
+# *.pkl
 *.joblib
 *.pt
 *.bin
