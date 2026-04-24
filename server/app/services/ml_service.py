@@ -9,40 +9,31 @@ from sklearn.metrics.pairwise import cosine_similarity
 import pandas as pd
 from datetime import date
 
-from huggingface_hub import hf_hub_download
-
 # ---------------------------------------------------------------------------
-# Hugging Face model repo (store artifacts here, not in the Space git repo)
+# Paths
 # ---------------------------------------------------------------------------
-HF_REPO_ID = os.getenv("HF_MODEL_REPO", "VeridianThesis/ResumeScreeningModel")
-HF_TOKEN = os.getenv("HF_TOKEN")  # set as Space secret if repo is private
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+MODEL_DIR = os.path.join(BASE_DIR, "model")
 
-def _download(filename: str) -> str:
-    return hf_hub_download(
-        repo_id=HF_REPO_ID,
-        filename=filename,
-        token=HF_TOKEN,   # safe even if None for public repos
-    )
+vectorizer_path = os.path.join(MODEL_DIR, "tfidf_vectorizer.pkl")
+classifier_path = os.path.join(MODEL_DIR, "trained_xgb_model.json")
 
 # ---------------------------------------------------------------------------
 # Load models globally (once on startup)
 # ---------------------------------------------------------------------------
 try:
-    # 1) TF-IDF vectorizer
-    vectorizer_file = _download("tfidf_vectorizer.pkl")
-    vectorizer = joblib.load(vectorizer_file)
+    # 1. TF-IDF vectorizer (sklearn, joblib)
+    vectorizer = joblib.load(vectorizer_path)
     print(f"[ml_service] TF-IDF vectorizer loaded | vocab={len(vectorizer.vocabulary_)} features")
 
-    # 2) XGBoost classifier JSON
-    classifier_file = _download("trained_xgb_model.json")
+    # 2. XGBoost classifier (native XGBoost JSON format)
     classifier = XGBClassifier()
-    classifier.load_model(classifier_file)
+    classifier.load_model(classifier_path)
     print(f"[ml_service] XGBoost classifier loaded | expects {classifier.n_features_in_} features")
 
-    # 3) SBERT model
-    # On Spaces, it's often better to allow download (remove local_files_only=True),
-    # otherwise it may fail if the image/cache is empty.
-    sbert = SentenceTransformer("all-MiniLM-L6-v2")
+    # 3. SBERT model (all-MiniLM-L6-v2 → 384-dim embeddings)
+    #    local_files_only=True prevents any network request (avoids errno -3 offline)
+    sbert = SentenceTransformer("all-MiniLM-L6-v2", local_files_only=True)
     print("[ml_service] SBERT model loaded")
 
     models_loaded = True
@@ -2206,7 +2197,13 @@ def skills_match_score(resume_text, job_description):
     resume_skills = extract_skills(resume_text)
 
     if not jd_skills:
-        return 1
+        # Only give benefit of the doubt if the JD looks like real human text.
+        # A garbage/random string should return 0, not 1.
+        jd_domains = extract_domains(job_description)
+        jd_families = extract_role_families(job_description)
+        if not jd_domains and not jd_families:
+            return 0  # JD has no recognizable content at all
+        return 1  # Real JD, just no explicit skills listed
 
     overlap = len(jd_skills.intersection(resume_skills))
     ratio = overlap / max(len(jd_skills), 1)
