@@ -39,8 +39,6 @@ class JobDescriptionParser:
         "What We Ask of You",
         "What You Will Need",
         "Who We're Looking For",
-        "We're Looking For",
-        "We are Looking For",
         "Qualifications",
         "Requirements",
         "Required Skills",
@@ -71,6 +69,23 @@ class JobDescriptionParser:
         # 0. Normalise curly/smart apostrophes to straight ones so the
         #    phrase list (straight apostrophes) matches consistently.
         text = text.replace('\u2019', "'").replace('\u2018', "'")
+
+        # 1a. Strip decorative separator lines (runs of _, -, =, * chars)
+        #     and remove/strip emoji characters which are not meaningful text.
+        # Remove runs of 4+ separator characters (standalone lines or inline).
+        text = re.sub(r'[_\-=*]{4,}', '', text)
+        text = re.sub(r'^[_\-=*]{4,}\s*$', '', text, flags=re.MULTILINE)
+        # Remove emoji (Unicode blocks: Emoticons, Misc Symbols, Dingbats, etc.)
+        emoji_pat = re.compile('['
+            '\U0001F300-\U0001F9FF'  # Misc Symbols, Emoticons, Transport
+            '\U00002702-\U000027B0'  # Dingbats
+            '\U000024C2-\U00002BFF'  # Enclosed Alphanumerics+
+            '\U0001FA00-\U0001FA6F'  # Chess / Extended Symbols
+            '\U0001FA70-\U0001FAFF'  # Symbols Extended-A
+            '\U00002300-\U000023FF'  # Misc Technical (clocks ⏰, etc.)
+            '\U00002600-\U000026FF'  # Misc Symbols (☀ ★ etc.)
+            ']+', re.UNICODE)
+        text = emoji_pat.sub('', text)
 
         # 1. Force known section headers onto their own lines FIRST.
         for phrase in self._SECTION_BREAK_PHRASES:
