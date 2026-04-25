@@ -15,9 +15,12 @@ const api = axios.create({
     },
 });
 
-// Request interceptor – attach the JWT from sessionStorage
+// Request interceptor – attach the JWT.
+// Check sessionStorage first (default), then localStorage (Remember Me).
 api.interceptors.request.use((config) => {
-    const token = sessionStorage.getItem('veridian_token');
+    const token =
+        sessionStorage.getItem('veridian_token') ||
+        localStorage.getItem('veridian_token');
     if (token) {
         config.headers.Authorization = `Bearer ${token}`;
     }
