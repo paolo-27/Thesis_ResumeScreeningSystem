@@ -43,9 +43,9 @@ const STORAGE_KEY_TOKEN = 'veridian_token';
 const STORAGE_KEY_USER = 'veridian_user';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => localStorage.getItem(STORAGE_KEY_TOKEN));
+  const [token, setToken] = useState<string | null>(() => sessionStorage.getItem(STORAGE_KEY_TOKEN));
   const [user, setUser] = useState<AuthUser | null>(() => {
-    const raw = localStorage.getItem(STORAGE_KEY_USER);
+    const raw = sessionStorage.getItem(STORAGE_KEY_USER);
     return raw ? JSON.parse(raw) : null;
   });
   const [isLoading, setIsLoading] = useState(false);
@@ -85,8 +85,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
       setToken(data.access_token);
       setUser(data.user);
-      localStorage.setItem(STORAGE_KEY_TOKEN, data.access_token);
-      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(data.user));
+      sessionStorage.setItem(STORAGE_KEY_TOKEN, data.access_token);
+      sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(data.user));
 
       // We no longer return or process forceReset since the flow is removed
     } finally {
@@ -97,8 +97,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
-    localStorage.removeItem(STORAGE_KEY_TOKEN);
-    localStorage.removeItem(STORAGE_KEY_USER);
+    sessionStorage.removeItem(STORAGE_KEY_TOKEN);
+    sessionStorage.removeItem(STORAGE_KEY_USER);
     window.location.href = '/admin/login';
   }, []);
 
@@ -106,7 +106,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(prev => {
       if (!prev) return prev;
       const next = { ...prev, ...updated };
-      localStorage.setItem(STORAGE_KEY_USER, JSON.stringify(next));
+      sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(next));
       return next;
     });
   }, []);
