@@ -46,7 +46,20 @@ async def apply_for_job(
 
     # Score resume via ML model AND capture the SBERT embedding for pgvector storage.
     # CPU-bound work is offloaded to a thread-pool worker to avoid blocking the event loop.
-    job_description = (job.description or "") + " " + (job.requirements or "")
+    # Include parsedRequirements so month-based experience requirements are visible to ml_service.
+    import json as _json_apply
+    _parsed_reqs_text = ""
+    if job.parsedRequirements:
+        try:
+            _reqs = _json_apply.loads(job.parsedRequirements) if isinstance(job.parsedRequirements, str) else job.parsedRequirements
+            _parsed_reqs_text = " ".join(_reqs) if isinstance(_reqs, list) else str(_reqs)
+        except Exception:
+            _parsed_reqs_text = str(job.parsedRequirements)
+    job_description = " ".join(filter(None, [
+        job.description or "",
+        job.requirements or "",
+        _parsed_reqs_text,
+    ])).strip()
     try:
         prob_score, gyr_tier, resume_embedding = await run_in_threadpool(
             predict_resume_tier_with_embedding, resume_text, job_description
@@ -228,14 +241,31 @@ def get_insights(candidate_id: str, db: Session = Depends(get_db), current_user:
             pass
     resume_text = resume_text.strip()
 
-    # Fetch job description from DB
+    # Fetch job description from DB.
+    # IMPORTANT: job.description stores the *cleaned* description (duties/overview text),
+    # while the raw qualification bullets end up in job.parsedRequirements via jd_parser.
+    # We must include parsedRequirements in the string passed to ml_service so that
+    # month-based experience requirements (e.g. "at least 6 months of management experience")
+    # are visible to extract_required_years — otherwise jd_has_requirement stays False.
     job_description = ""
     if db_candidate.applied_job_id:
         job = db.query(models.JobPosting).filter(
             models.JobPosting.id == db_candidate.applied_job_id
         ).first()
         if job:
-            job_description = ((job.description or "") + " " + (job.requirements or "")).strip()
+            import json as _json
+            parsed_reqs_text = ""
+            if job.parsedRequirements:
+                try:
+                    reqs_list = _json.loads(job.parsedRequirements) if isinstance(job.parsedRequirements, str) else job.parsedRequirements
+                    parsed_reqs_text = " ".join(reqs_list) if isinstance(reqs_list, list) else str(reqs_list)
+                except Exception:
+                    parsed_reqs_text = str(job.parsedRequirements)
+            job_description = " ".join(filter(None, [
+                job.description or "",
+                job.requirements or "",
+                parsed_reqs_text,
+            ])).strip()
 
     try:
         result = get_candidate_insights(resume_text, job_description)

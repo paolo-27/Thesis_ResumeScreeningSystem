@@ -73,6 +73,20 @@ function resolveStatus(
 
 // ─── Requirement breakdown with explanations ──────────────────────────────────
 
+/**
+ * Converts a fractional year value into a human-friendly duration string.
+ * Examples: 0.5 → "6 months" | 1 → "1 year" | 1.5 → "1 year 6 months" | 2 → "2 years"
+ */
+function formatYears(years: number): string {
+    const totalMonths = Math.round(years * 12);
+    const y = Math.floor(totalMonths / 12);
+    const m = totalMonths % 12;
+    const parts: string[] = [];
+    if (y > 0) parts.push(`${y} year${y !== 1 ? 's' : ''}`);
+    if (m > 0) parts.push(`${m} month${m !== 1 ? 's' : ''}`);
+    return parts.length ? parts.join(' ') : '0 months';
+}
+
 function buildRequirementBreakdown(
     raw: RawInsightsResponse,
 ): RequirementItem[] {
@@ -108,8 +122,8 @@ function buildRequirementBreakdown(
         const req = ctx.experience.required_years;
         const cand = ctx.experience.candidate_years;
         expExplanation =
-            `Job requires ${req} year${req !== 1 ? 's' : ''}. ` +
-            `Resume indicates approximately ${cand} year${cand !== 1 ? 's' : ''} of experience.`;
+            `Job requires ${formatYears(req)}. ` +
+            `Resume indicates approximately ${formatYears(cand)} of experience.`;
     }
 
     // ── Education ─────────────────────────────────────────────────────────────
@@ -237,13 +251,13 @@ function buildStrengthsAndGaps(
             const req = ctx.experience.required_years;
             const cand = ctx.experience.candidate_years;
             strengths.push(
-                `Meets the ${req}-year experience requirement (≈${cand} years detected)`,
+                `Meets the ${formatYears(req)} experience requirement (≈${formatYears(cand)} detected)`,
             );
         } else if (s.experience < 1) {
             const req = ctx.experience.required_years;
             const cand = ctx.experience.candidate_years;
             gaps.push(
-                `Falls short of the stated ${req}-year experience requirement (≈${cand} years detected)`,
+                `Falls short of the stated ${formatYears(req)} experience requirement (≈${formatYears(cand)} detected)`,
             );
         }
         // s.experience === 1 → partial, no strong statement in either direction
