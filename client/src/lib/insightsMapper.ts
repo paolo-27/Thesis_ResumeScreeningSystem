@@ -87,33 +87,45 @@ function buildInsightStory(shapValues: ShapValue[]): string {
 
 function buildWaterfallData(raw: RawInsightsResponse, finalScore: number): WaterfallNode[] {
     const data: WaterfallNode[] = [];
-    let currentPct = raw.base_value * 100;
+    const basePct = raw.base_value * 100;
+    const finalPct = finalScore * 100;
+    
+    // Calculate total impact needed to bridge from base to final
+    const totalImpactNeeded = finalPct - basePct;
+    const rawShapSum = raw.shap_values.reduce((sum, item) => sum + item.value, 0);
+    
+    // Scaling factor to ensure the waterfall adds up perfectly in the UI
+    // If raw sum is 0 (unlikely for a match), we skip scaling
+    const scale = rawShapSum !== 0 ? totalImpactNeeded / (rawShapSum * 100) : 1;
+
+    let currentPct = basePct;
     
     data.push({
         name: 'Base AI Score',
-        value: currentPct,
-        range: [0, currentPct], // Base starts from 0 to its value
+        value: basePct,
+        range: [0, basePct],
         isTotal: true
     });
     
     for (const item of raw.shap_values) {
-        const impact = item.value * 100;
-        // Skip extremely small noise to keep chart clean
-        if (Math.abs(impact) < 0.1) continue; 
+        const impact = item.value * 100 * scale;
+        // Skip extremely small noise
+        if (Math.abs(impact) < 0.05) continue; 
         
+        const nextPct = currentPct + impact;
         data.push({
             name: translateShapLabel(item.label),
             value: impact,
-            range: [currentPct, currentPct + impact]
+            range: [Math.min(currentPct, nextPct), Math.max(currentPct, nextPct)]
         });
         
-        currentPct += impact;
+        currentPct = nextPct;
     }
     
     data.push({
         name: 'Final Match Score',
-        value: finalScore * 100,
-        range: [0, finalScore * 100], // Final score bar goes from 0
+        value: finalPct,
+        range: [0, finalPct],
         isTotal: true
     });
     
