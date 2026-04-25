@@ -646,6 +646,19 @@ SKILL_ALIASES = {
     "microservices": ["microservices", "micro services"],
     "cybersecurity": ["cybersecurity", "cyber security", "information security"],
     "penetration testing": ["penetration testing", "pen testing", "ethical hacking"],
+    # ── Soft / operational skills (retail, supervisory, service roles) ──────────
+    "leadership": ["leadership", "team leadership", "people management", "staff management"],
+    "communication": ["communication skills", "interpersonal skills", "verbal communication", "written communication"],
+    "problem solving": ["problem-solving", "problem solving", "analytical thinking", "critical thinking"],
+    "customer service": ["customer service", "customer handling", "customer relations", "customer satisfaction"],
+    "cash handling": ["cash handling", "cash management", "cashiering", "pos", "point of sale"],
+    "scheduling": ["scheduling", "shift scheduling", "workforce scheduling", "shift management"],
+    "team management": ["team management", "team performance", "supervise", "supervision", "delegate", "delegation"],
+    "compliance": ["compliance", "safety regulations", "safety compliance", "regulatory compliance"],
+    "inventory management": ["inventory management", "stock management", "inventory control"],
+    "training": ["training", "coaching", "mentoring", "onboarding"],
+    "time management": ["time management", "multitasking", "prioritization"],
+    "integrity": ["integrity", "trustworthy", "reliable", "accountability"],
 }
 
 DOMAIN_KEYWORDS = {
@@ -808,6 +821,30 @@ DOMAIN_KEYWORDS = {
         "ui design",
         "ux design",
     },
+    "retail_operations": {
+        "retail",
+        "store operations",
+        "shift supervisor",
+        "shift manager",
+        "store manager",
+        "floor manager",
+        "store crew",
+        "daily operations",
+        "cash handling",
+        "safety regulations",
+        "team performance",
+        "crew",
+        "branch operations",
+        "convenience store",
+        "supermarket",
+        "fast food",
+        "food service",
+        "restaurant",
+        "cashier",
+        "customer issues",
+        "shifting schedules",
+        "shifting schedule",
+    },
 }
 
 _DATA_ANALYTICS_STRONG_TERMS = {
@@ -893,6 +930,7 @@ RELATED_DOMAINS = {
     "hr_recruitment": {"hr_recruitment"},
     "product_management": {"product_management", "software_engineering"},
     "design_creative": {"design_creative"},
+    "retail_operations": {"retail_operations"},
 }
 
 ROLE_FAMILY_DOMAIN_MAP = {
@@ -904,6 +942,7 @@ ROLE_FAMILY_DOMAIN_MAP = {
     "finance_accounting": {"finance"},
     "operations_product": {"product_management"},
     "it_security": {"it_support", "cybersecurity"},
+    "retail_ops": {"retail_operations"},
 }
 
 ROLE_FAMILY_KEYWORDS = {
@@ -1059,6 +1098,30 @@ ROLE_FAMILY_KEYWORDS = {
         "customer service representative",
         "customer support specialist",
     },
+    "retail_ops": {
+        "shift supervisor",
+        "store supervisor",
+        "shift manager",
+        "store manager",
+        "floor manager",
+        "store crew",
+        "crew member",
+        "retail staff",
+        "retail associate",
+        "cashier",
+        "branch operations",
+        "daily operations",
+        "cash handling",
+        "safety regulations",
+        "team performance",
+        "shifting schedule",
+        "shifting schedules",
+        "convenience store",
+        "supermarket",
+        "fast food",
+        "food service",
+        "restaurant manager",
+    },
     "it_security": {
         "cybersecurity",
         "security analyst",
@@ -1112,6 +1175,11 @@ ROLE_FAMILY_SKILL_HINTS = {
         "helpdesk", "service desk", "active directory", "windows server",
         "network security", "siem", "incident response",
     },
+    "retail_ops": {
+        "cash handling", "customer service", "scheduling", "team management",
+        "compliance", "inventory management", "leadership", "communication",
+        "problem solving", "training", "integrity",
+    },
 }
 
 ROLE_FAMILY_ADJACENCY = {
@@ -1119,7 +1187,7 @@ ROLE_FAMILY_ADJACENCY = {
     "data_ml": {"software_backend", "operations_product"},
     "design_creative": {"marketing_business", "operations_product"},
     "hr_recruiting": {"marketing_business", "operations_product"},
-    "marketing_business": {"design_creative", "hr_recruiting", "finance_accounting", "operations_product"},
+    "marketing_business": {"design_creative", "hr_recruiting", "finance_accounting", "operations_product", "retail_ops"},
     "finance_accounting": {"marketing_business", "operations_product"},
     "operations_product": {
         "software_backend",
@@ -1129,8 +1197,10 @@ ROLE_FAMILY_ADJACENCY = {
         "marketing_business",
         "finance_accounting",
         "it_security",
+        "retail_ops",
     },
     "it_security": {"software_backend", "operations_product"},
+    "retail_ops": {"operations_product", "marketing_business", "finance_accounting"},
 }
 
 _WORD_TO_NUM = {
@@ -2025,7 +2095,28 @@ def extract_required_years(job_description):
     if range_values or minimum_values:
         return min(range_values + minimum_values)
 
-    return max(generic_values) if generic_values else 0
+    if generic_values:
+        return max(generic_values)
+
+    # ── Month-only JD requirements (e.g. "at least 6 months of management experience") ──
+    # These are converted to fractional years so jd_has_requirement fires correctly.
+    month_req_patterns = [
+        r"(?:at\s+least|minimum(?:\s+of)?|least|min(?:imum)?)\s+"
+        + _NUM_PATTERN
+        + r"\s*(?:months?|mos?)\s+(?:of\s+)?(?:\w+\s+)*?experience",
+        _NUM_PATTERN + r"\s*(?:months?|mos?)\s+(?:of\s+)?experience",
+        r"experience\s*[:\-]?\s*" + _NUM_PATTERN + r"\s*(?:months?|mos?)",
+    ]
+    month_values_raw = _extract_explicit_year_values(
+        normalize_experience_text(normalized_job_description),
+        month_req_patterns,
+        range_mode="single",
+    )
+    if month_values_raw:
+        # Convert months → fractional years (e.g. 6 months → 0.5)
+        return round(min(month_values_raw) / 12, 2)
+
+    return 0
 
 
 def _extract_explicit_duration_years(text):
