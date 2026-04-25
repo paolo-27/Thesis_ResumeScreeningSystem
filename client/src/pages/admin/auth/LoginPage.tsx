@@ -15,13 +15,14 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [employeeNumber, setEmployeeNumber] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     try {
-      await login(employeeNumber, password);
+      await login(employeeNumber, password, rememberMe);
       onLogin();
     } catch (err: any) {
       setError(err.message || 'Login failed. Please try again.');
@@ -92,8 +93,13 @@ export default function LoginPage({ onLogin }: LoginPageProps) {
               </div>
 
               <div className="flex items-center text-sm">
-                <label className="flex items-center gap-2 cursor-pointer">
-                  <input type="checkbox" className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500" />
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={rememberMe}
+                    onChange={(e) => setRememberMe(e.target.checked)}
+                    className="rounded border-gray-300 text-emerald-600 focus:ring-emerald-500 cursor-pointer"
+                  />
                   <span className="text-gray-600">Remember me</span>
                 </label>
               </div>

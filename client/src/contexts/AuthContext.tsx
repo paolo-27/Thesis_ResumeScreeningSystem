@@ -31,7 +31,7 @@ interface AuthContextType {
   user: AuthUser | null;
   token: string | null;
   isAdmin: boolean;
-  login: (employeeNumber: string, password: string) => Promise<void>;
+  login: (employeeNumber: string, password: string, rememberMe?: boolean) => Promise<void>;
   logout: () => void;
   updateUser: (updated: Partial<AuthUser>) => void;
   isLoading: boolean;
@@ -41,18 +41,29 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const STORAGE_KEY_TOKEN = 'veridian_token';
 const STORAGE_KEY_USER = 'veridian_user';
+// Marker persisted in localStorage so we know which storage to read from on reload
+const STORAGE_KEY_REMEMBER = 'veridian_remember';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [token, setToken] = useState<string | null>(() => sessionStorage.getItem(STORAGE_KEY_TOKEN));
+  // On mount, prefer sessionStorage. If the user had checked "Remember me",
+  // the marker is in localStorage and the token is there too.
+  const isRemembered = localStorage.getItem(STORAGE_KEY_REMEMBER) === 'true';
+  const [token, setToken] = useState<string | null>(() =>
+    isRemembered
+      ? localStorage.getItem(STORAGE_KEY_TOKEN)
+      : sessionStorage.getItem(STORAGE_KEY_TOKEN)
+  );
   const [user, setUser] = useState<AuthUser | null>(() => {
-    const raw = sessionStorage.getItem(STORAGE_KEY_USER);
+    const raw = isRemembered
+      ? localStorage.getItem(STORAGE_KEY_USER)
+      : sessionStorage.getItem(STORAGE_KEY_USER);
     return raw ? JSON.parse(raw) : null;
   });
   const [isLoading, setIsLoading] = useState(false);
 
   const isAdmin = user?.role === 'Admin';
 
-  const login = useCallback(async (employeeNumber: string, password: string) => {
+  const login = useCallback(async (employeeNumber: string, password: string, rememberMe = false) => {
     setIsLoading(true);
     try {
       const formData = new URLSearchParams();
@@ -85,8 +96,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await res.json();
       setToken(data.access_token);
       setUser(data.user);
-      sessionStorage.setItem(STORAGE_KEY_TOKEN, data.access_token);
-      sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(data.user));
+      const storage = rememberMe ? localStorage : sessionStorage;
+      storage.setItem(STORAGE_KEY_TOKEN, data.access_token);
+      storage.setItem(STORAGE_KEY_USER, JSON.stringify(data.user));
+      // Persist the preference so we know which storage to read from on reload
+      if (rememberMe) {
+        localStorage.setItem(STORAGE_KEY_REMEMBER, 'true');
+      } else {
+        localStorage.removeItem(STORAGE_KEY_REMEMBER);
+      }
 
       // We no longer return or process forceReset since the flow is removed
     } finally {
@@ -97,8 +115,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = useCallback(() => {
     setToken(null);
     setUser(null);
+    // Always clear both storages + the remember flag on logout
     sessionStorage.removeItem(STORAGE_KEY_TOKEN);
     sessionStorage.removeItem(STORAGE_KEY_USER);
+    localStorage.removeItem(STORAGE_KEY_TOKEN);
+    localStorage.removeItem(STORAGE_KEY_USER);
+    localStorage.removeItem(STORAGE_KEY_REMEMBER);
     window.location.href = '/admin/login';
   }, []);
 
@@ -106,7 +128,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setUser(prev => {
       if (!prev) return prev;
       const next = { ...prev, ...updated };
-      sessionStorage.setItem(STORAGE_KEY_USER, JSON.stringify(next));
+      // Write back to whichever storage is active for this session
+      const storage = localStorage.getItem(STORAGE_KEY_REMEMBER) === 'true' ? localStorage : sessionStorage;
+      storage.setItem(STORAGE_KEY_USER, JSON.stringify(next));
       return next;
     });
   }, []);

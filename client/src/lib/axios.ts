@@ -30,8 +30,12 @@ api.interceptors.response.use(
     (response) => response,
     (error) => {
         if (error.response?.status === 401) {
+            // Clear both storages – token may be in either depending on "Remember me"
             sessionStorage.removeItem('veridian_token');
             sessionStorage.removeItem('veridian_user');
+            localStorage.removeItem('veridian_token');
+            localStorage.removeItem('veridian_user');
+            localStorage.removeItem('veridian_remember');
             window.location.href = '/admin/login';
         }
         return Promise.reject(error);
