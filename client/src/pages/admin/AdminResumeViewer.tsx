@@ -27,17 +27,14 @@ import {
     ChevronRight,
     ZoomIn,
     ZoomOut,
+    Maximize2,
     Loader2,
     AlertCircle,
     BarChart2,
     X,
-    CheckCircle2,
-    XCircle,
-    HelpCircle,
-    MinusCircle,
 } from 'lucide-react';
 import type { Candidate } from '../../types';
-import type { RawInsightsResponse, CandidateSummaryData, RequirementItem } from '../../types/insights';
+import type { RawInsightsResponse, CandidateSummaryData } from '../../types/insights';
 import { mapInsightsToUI } from '../../lib/insightsMapper';
 import api from '../../lib/axios';
 
@@ -169,175 +166,9 @@ function PdfViewer({ url }: { url: string }) {
     );
 }
 
-// ─── SHAP explainer sub-modal ─────────────────────────────────────────────────
-const CHART_COLORS = ['#059669', '#0ea5e9', '#f59e0b', '#8b5cf6'];
+// SHAP Explainer Modal removed as requested — insights are directly in the Waterfall now.
 
-function SHAPExplainerModal({
-    data,
-    onClose,
-}: {
-    data: CandidateSummaryData;
-    onClose: () => void;
-}) {
-    useEffect(() => {
-        const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
-        window.addEventListener('keydown', handler);
-        return () => window.removeEventListener('keydown', handler);
-    }, [onClose]);
-
-    const expl = data.modelExplanation;
-
-    return (
-        <div
-            className="fixed inset-0 z-[60] flex items-center justify-center"
-            style={{ backdropFilter: 'blur(4px)', backgroundColor: 'rgba(0,0,0,0.6)' }}
-            onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
-        >
-            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl mx-4 overflow-hidden flex flex-col max-h-[90vh]">
-                {/* Header */}
-                <div className="flex items-center justify-between px-6 py-4 border-b border-gray-200 flex-shrink-0">
-                    <div className="flex items-center gap-2">
-                        <BarChart2 className="w-5 h-5 text-violet-600" />
-                        <div>
-                            <h2 className="text-gray-900 font-semibold text-sm">How the AI Scored This Resume</h2>
-                            <p className="text-xs text-gray-400">Technical model explanation — for informational purposes only</p>
-                        </div>
-                    </div>
-                    <button
-                        onClick={onClose}
-                        className="text-gray-400 hover:text-gray-700 transition-colors rounded-full p-1 hover:bg-gray-100"
-                        aria-label="Close SHAP explainer"
-                    >
-                        <X className="w-5 h-5" />
-                    </button>
-                </div>
-
-                {/* Body */}
-                <div className="overflow-y-auto flex-1 px-6 py-5 space-y-6">
-                    {/* SHAP Feature Importance chart */}
-                    <div>
-                        <h3 className="text-sm font-semibold text-gray-700 mb-1">XGBoost Feature Importance (SHAP)</h3>
-                        <p className="text-xs text-gray-400 mb-4">
-                            Summed absolute SHAP contributions per feature — higher bars had greater influence on the model's prediction score.
-                        </p>
-                        <ResponsiveContainer width="100%" height={220}>
-                            <BarChart
-                                data={expl.shapValues}
-                                layout="vertical"
-                                margin={{ top: 0, right: 24, left: 8, bottom: 0 }}
-                            >
-                                <XAxis
-                                    type="number"
-                                    tick={{ fontSize: 11, fill: '#6b7280' }}
-                                    tickFormatter={(v) => v.toFixed(2)}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <YAxis
-                                    type="category"
-                                    dataKey="label"
-                                    width={145}
-                                    tick={{ fontSize: 11, fill: '#374151' }}
-                                    axisLine={false}
-                                    tickLine={false}
-                                />
-                                <Tooltip
-                                    formatter={(value: number) => [value.toFixed(4), 'SHAP |value|']}
-                                    contentStyle={{
-                                        fontSize: 12,
-                                        borderRadius: 8,
-                                        border: '1px solid #e5e7eb',
-                                        boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-                                    }}
-                                />
-                                <Bar dataKey="value" radius={[0, 4, 4, 0]}>
-                                    {expl.shapValues.map((_, i) => (
-                                        <Cell key={i} fill={CHART_COLORS[i % CHART_COLORS.length]} />
-                                    ))}
-                                </Bar>
-                            </BarChart>
-                        </ResponsiveContainer>
-                    </div>
-
-                    {/* Raw similarity cards */}
-                    <div>
-                        <h3 className="text-sm font-semibold text-gray-700 mb-3">Raw Similarity Scores</h3>
-                        <div className="grid grid-cols-2 gap-3">
-                            {[
-                                {
-                                    label: 'Keyword Match',
-                                    techLabel: 'TF-IDF Cosine Similarity',
-                                    value: expl.keywordMatch,
-                                    colorClass: 'bg-emerald-50 border-emerald-100',
-                                    textClass: 'text-emerald-600',
-                                    boldClass: 'text-emerald-700',
-                                    barClass: 'bg-emerald-500',
-                                    desc: 'Keyword-level overlap between resume and job description',
-                                },
-                                {
-                                    label: 'Meaning Match',
-                                    techLabel: 'SBERT Cosine Similarity',
-                                    value: expl.meaningMatch,
-                                    colorClass: 'bg-sky-50 border-sky-100',
-                                    textClass: 'text-sky-600',
-                                    boldClass: 'text-sky-700',
-                                    barClass: 'bg-sky-500',
-                                    desc: 'Semantic similarity via sentence-transformer embeddings',
-                                },
-                            ].map(({ label, techLabel, value, colorClass, textClass, boldClass, barClass, desc }) => (
-                                <div key={label} className={`rounded-xl border p-4 ${colorClass}`}>
-                                    <p className={`text-xs font-medium mb-0.5 ${textClass}`}>{label}</p>
-                                    <p className={`text-[10px] mb-1 ${textClass} opacity-70`}>{techLabel}</p>
-                                    <p className={`text-3xl font-bold mb-2 ${boldClass}`}>{value.toFixed(1)}%</p>
-                                    <div className="w-full bg-white rounded-full h-1.5 overflow-hidden">
-                                        <div
-                                            className={`h-1.5 rounded-full ${barClass} transition-all duration-700`}
-                                            style={{ width: `${Math.min(value, 100)}%` }}
-                                        />
-                                    </div>
-                                    <p className="text-xs text-gray-400 mt-2 leading-tight">{desc}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-
-                    {/* Footnote */}
-                    <p className="text-xs text-gray-400 pb-1">
-                        SHAP values computed using{' '}
-                        <code className="font-mono bg-gray-100 px-1 rounded">shap.TreeExplainer</code>{' '}
-                        on the XGBoost classifier. These values reflect how each feature influenced the model's
-                        probability output — they do not directly determine the candidate summary shown to HR.
-                    </p>
-                </div>
-            </div>
-        </div>
-    );
-}
-
-// ─── Requirement status pill ──────────────────────────────────────────────────
-function StatusPill({ status }: { status: RequirementItem['status'] }) {
-    if (status === 'met') return (
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-full px-2 py-0.5">
-            <CheckCircle2 className="w-3 h-3" /> Met
-        </span>
-    );
-    if (status === 'partial') return (
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-yellow-700 bg-yellow-50 border border-yellow-200 rounded-full px-2 py-0.5">
-            <AlertCircle className="w-3 h-3" /> Partial
-        </span>
-    );
-    if (status === 'gap') return (
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-red-600 bg-red-50 border border-red-200 rounded-full px-2 py-0.5">
-            <XCircle className="w-3 h-3" /> Gap
-        </span>
-    );
-    // not_stated — neutral; never shown as a failure
-    return (
-        <span className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 bg-gray-50 border border-gray-200 rounded-full px-2 py-0.5">
-            <MinusCircle className="w-3 h-3" /> Not stated
-        </span>
-    );
-}
+// Status pill removed (no longer used in UI)
 
 // ─── HR Candidate Summary modal ───────────────────────────────────────────────
 function InsightsModal({
@@ -351,13 +182,11 @@ function InsightsModal({
     error: string | null;
     onClose: () => void;
 }) {
-    const [shapOpen, setShapOpen] = useState(false);
-
     useEffect(() => {
-        const handler = (e: KeyboardEvent) => { if (e.key === 'Escape' && !shapOpen) onClose(); };
+        const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
         window.addEventListener('keydown', handler);
         return () => window.removeEventListener('keydown', handler);
-    }, [onClose, shapOpen]);
+    }, [onClose]);
 
     const fitColors: Record<string, string> = {
         'Strong Fit':    'bg-emerald-100 text-emerald-800 border-emerald-200',
@@ -368,12 +197,6 @@ function InsightsModal({
         'Strong Fit':    'bg-emerald-500',
         'Potential Fit': 'bg-yellow-500',
         'Low Fit':       'bg-red-500',
-    };
-    const barColor: Record<RequirementItem['status'], string> = {
-        met:        'bg-emerald-500',
-        partial:    'bg-yellow-400',
-        gap:        'bg-red-400',
-        not_stated: 'bg-gray-200',
     };
 
     return (
@@ -422,16 +245,8 @@ function InsightsModal({
                         {data && !loading && (
                         <>
                             {/* ── Overall Fit card ── */}
-                            <div className="relative rounded-xl border border-gray-200 bg-gray-50 p-5">
-                                {/* ? icon — opens SHAP sub-modal */}
-                                <button
-                                    onClick={() => setShapOpen(true)}
-                                    title="How did the AI score this?"
-                                    className="absolute top-3 right-3 text-gray-400 hover:text-violet-600 transition-colors"
-                                    aria-label="View AI model explanation"
-                                >
-                                    <HelpCircle className="w-4 h-4" />
-                                </button>
+                            <div className="flex flex-col gap-5">
+                                <div className="relative rounded-xl border border-gray-200 bg-gray-50 p-5">
 
                                 <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Overall Assessment</p>
                                 <div className="flex items-center gap-3">
@@ -446,130 +261,61 @@ function InsightsModal({
                                 </div>
                             </div>
 
-                            {/* ── Strengths & Gaps ── */}
-                            <div className="grid grid-cols-2 gap-4">
-                                {/* Strengths */}
-                                <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4">
-                                    <p className="text-xs font-semibold text-emerald-700 mb-2 uppercase tracking-wide flex items-center gap-1">
-                                        <CheckCircle2 className="w-3.5 h-3.5" /> Strengths
-                                    </p>
-                                    {data.strengths.length === 0 ? (
-                                        <p className="text-xs text-emerald-600 opacity-70">No notable strengths detected.</p>
-                                    ) : (
-                                        <ul className="space-y-1.5">
-                                            {data.strengths.map((s, i) => (
-                                                <li key={i} className="text-xs text-emerald-800 flex items-start gap-1.5">
-                                                    <span className="mt-1 w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
-                                                    {s}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
-
-                                {/* Gaps */}
-                                <div className="rounded-xl border border-red-100 bg-red-50 p-4">
-                                    <p className="text-xs font-semibold text-red-700 mb-2 uppercase tracking-wide flex items-center gap-1">
-                                        <XCircle className="w-3.5 h-3.5" /> Gaps
-                                    </p>
-                                    {data.gaps.length === 0 ? (
-                                        <p className="text-xs text-red-600 opacity-70">No significant gaps detected.</p>
-                                    ) : (
-                                        <ul className="space-y-1.5">
-                                            {data.gaps.map((g, i) => (
-                                                <li key={i} className="text-xs text-red-800 flex items-start gap-1.5">
-                                                    <span className="mt-1 w-1.5 h-1.5 rounded-full bg-red-500 flex-shrink-0" />
-                                                    {g}
-                                                </li>
-                                            ))}
-                                        </ul>
-                                    )}
-                                </div>
-                            </div>
-
-                            {/* ── Requirement Breakdown ── */}
-                            <div>
-                                <p className="text-sm font-semibold text-gray-700 mb-3">Requirement Breakdown</p>
-                                <div className="space-y-3">
-                                    {data.requirementBreakdown.map((item) => (
-                                        <div key={item.label}>
-                                            <div className="flex items-center justify-between mb-1">
-                                                <span className="text-xs font-medium text-gray-700">{item.label}</span>
-                                                <div className="flex items-center gap-2">
-                                                    {item.status !== 'not_stated' && (
-                                                        <span className="text-xs text-gray-500">{item.percentage}%</span>
-                                                    )}
-                                                    <StatusPill status={item.status} />
-                                                </div>
-                                            </div>
-                                            {/* Progress bar — dashed/greyed out for not_stated */}
-                                            <div className={`w-full rounded-full h-2 overflow-hidden ${
-                                                item.status === 'not_stated'
-                                                    ? 'bg-gray-100 border border-dashed border-gray-300'
-                                                    : 'bg-gray-100'
-                                            }`}>
-                                                <div
-                                                    className={`h-2 rounded-full ${barColor[item.status]} transition-all duration-700`}
-                                                    style={{ width: `${item.percentage}%` }}
+                                {/* ── The Individual Story (Waterfall) ── */}
+                                <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                                    <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                        <BarChart2 className="w-4 h-4 text-emerald-600" />
+                                        The Individual Story
+                                    </h3>
+                                    
+                                    <div className="h-64 w-full mb-2">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <BarChart 
+                                                data={data.waterfallData} 
+                                                layout="vertical"
+                                                margin={{ top: 0, right: 30, left: 10, bottom: 0 }}
+                                            >
+                                                <XAxis type="number" domain={[0, 100]} hide />
+                                                <YAxis 
+                                                    type="category" 
+                                                    dataKey="name" 
+                                                    width={110} 
+                                                    tick={{fontSize: 11, fill: '#4b5563'}}
+                                                    axisLine={false}
+                                                    tickLine={false}
                                                 />
-                                            </div>
-                                            {/* Safe explanation text */}
-                                            <p className="text-[10px] text-gray-400 mt-1 leading-snug">
-                                                {item.explanation}
-                                            </p>
-                                        </div>
-                                    ))}
+                                                <Tooltip 
+                                                    formatter={(value: any, name: any, props: any) => {
+                                                        if (props.payload.isTotal) return [`${props.payload.value.toFixed(1)}%`, 'Score'];
+                                                        const prefix = props.payload.value > 0 ? '+' : '';
+                                                        return [`${prefix}${props.payload.value.toFixed(1)}%`, 'Impact'];
+                                                    }}
+                                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                                    cursor={{fill: '#f3f4f6'}}
+                                                />
+                                                <Bar dataKey="range" isAnimationActive={false} radius={[0, 2, 2, 0]}>
+                                                    {data.waterfallData.map((entry, index) => {
+                                                        if (entry.isTotal) return <Cell key={`cell-${index}`} fill="#94a3b8" />; // slate-400
+                                                        return <Cell key={`cell-${index}`} fill={entry.value > 0 ? "#10b981" : "#ef4444"} />; // emerald-500 / red-500
+                                                    })}
+                                                </Bar>
+                                            </BarChart>
+                                        </ResponsiveContainer>
+                                    </div>
+                                    
+                                    {/* ── Insight Maker ── */}
+                                    <div className="mt-4 pt-4 border-t border-gray-100">
+                                        <p className="text-[13px] text-gray-700 font-medium leading-relaxed">
+                                            {data.insightStory}
+                                        </p>
+                                    </div>
                                 </div>
                             </div>
-
-                            {/* ── Technical Details (collapsible) ── */}
-                            <details className="group rounded-xl border border-gray-200">
-                                <summary className="flex items-center justify-between px-4 py-3 cursor-pointer text-xs font-medium text-gray-600 hover:text-gray-900 select-none">
-                                    <span className="flex items-center gap-1.5">
-                                        <BarChart2 className="w-3.5 h-3.5" /> Text Similarity Scores
-                                    </span>
-                                    <span className="text-gray-400 group-open:rotate-180 transition-transform">▾</span>
-                                </summary>
-                                <div className="px-4 pb-4 pt-1 grid grid-cols-2 gap-3">
-                                    {[
-                                        { label: 'Keyword Match', sub: 'TF-IDF similarity', value: data.modelExplanation.keywordMatch, bar: 'bg-emerald-400' },
-                                        { label: 'Meaning Match', sub: 'SBERT similarity',  value: data.modelExplanation.meaningMatch, bar: 'bg-sky-400' },
-                                    ].map(({ label, sub, value, bar }) => (
-                                        <div key={label} className="rounded-lg bg-gray-50 border border-gray-200 p-3">
-                                            <p className="text-xs font-medium text-gray-700 mb-0.5">{label}</p>
-                                            <p className="text-[10px] text-gray-400 mb-1">{sub}</p>
-                                            <p className="text-xl font-bold text-gray-900 mb-1.5">{value.toFixed(1)}%</p>
-                                            <div className="w-full bg-gray-200 rounded-full h-1.5 overflow-hidden">
-                                                <div className={`h-1.5 rounded-full ${bar}`} style={{ width: `${Math.min(value, 100)}%` }} />
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </details>
-
-                            {/* AI model explanation link */}
-                            <p className="text-xs text-gray-400 pb-1">
-                                <button
-                                    onClick={() => setShapOpen(true)}
-                                    className="underline decoration-dotted text-violet-500 hover:text-violet-700 transition-colors"
-                                >
-                                    How did the AI calculate this score?
-                                </button>
-                                {' '}This summary is based on structured matching logic, not raw AI weights.
-                            </p>
                         </>
                         )}
                     </div>
                 </div>
             </div>
-
-            {/* SHAP sub-modal */}
-            {shapOpen && data && (
-                <SHAPExplainerModal
-                    data={data}
-                    onClose={() => setShapOpen(false)}
-                />
-            )}
         </>
     );
 }

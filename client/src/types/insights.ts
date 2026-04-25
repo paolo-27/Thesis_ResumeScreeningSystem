@@ -67,7 +67,8 @@ export interface RequirementContext {
 
 /** Full shape of /api/candidates/:id/insights */
 export interface RawInsightsResponse {
-  /** SHAP feature importance — for model explanation only, NEVER for HR summary */
+  base_value: number;
+  /** SHAP feature importance contribution values */
   shap_values: ShapValue[];
   tfidf_sim: number;
   sbert_sim: number;
@@ -114,23 +115,26 @@ export interface ModelExplanation {
   shapValues: ShapValue[];
 }
 
+export interface WaterfallNode {
+  name: string;
+  value: number; // impact
+  range?: [number, number]; // [start, end] for Recharts floating bars
+  isTotal?: boolean; // used for the base or final score bars
+}
+
 /**
  * Fully transformed HR-friendly data produced by mapInsightsToUI().
- *
- * Data source guarantees:
- *  fitLabel / fitScore       ← probability_score only
- *  strengths / gaps          ← structured_scores + requirement_context + similarity
- *  requirementBreakdown      ← structured_scores + requirement_context
- *  modelExplanation          ← shap_values + similarity (SHAP sub-modal only)
- *
- * ⚠️  Gaps are ONLY emitted when the JD explicitly stated the requirement.
- *     Missing certainty is never turned into a hard Gap.
  */
 export interface CandidateSummaryData {
   fitLabel: FitLabel;
   fitScore: number;
-  strengths: string[];
-  gaps: string[];
-  requirementBreakdown: RequirementItem[];
+  
+  // Waterfall plot data corresponding to base + features = final
+  baseValue: number;
+  waterfallData: WaterfallNode[];
+  
+  // The dynamically generated English explanation describing the chart
+  insightStory: string;
+  
   modelExplanation: ModelExplanation;
 }

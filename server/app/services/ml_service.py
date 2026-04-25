@@ -2654,10 +2654,18 @@ def get_candidate_insights(resume_text: str, job_description: str) -> dict:
     grouped = []
     for grp in _FEATURE_GROUPS:
         segment = shap_array[grp["start"]:grp["end"]]
+        # We need signed values for a waterfall chart to show positive/negative impact
         grouped.append({
             "label": grp["label"],
-            "value": round(float(np.sum(np.abs(segment))), 6),
+            "value": round(float(np.sum(segment)), 6),
         })
+
+    # Extract base expected value for the waterfall plot
+    exp_val = explainer.expected_value
+    if isinstance(exp_val, list) or isinstance(exp_val, np.ndarray):
+        base_value = float(exp_val[1]) if len(exp_val) > 1 else float(exp_val[0])
+    else:
+        base_value = float(exp_val)
 
     # Extract structured dimension scores from the feature vector
     # Feature vector layout: [0]=tfidf, [1]=sbert, [2]=skills(0-2), [3]=exp(0-3), [4]=edu(0-2), [5]=domain(0-1)
@@ -2716,6 +2724,7 @@ def get_candidate_insights(resume_text: str, job_description: str) -> dict:
 
     print(f"[ml_service] Insights computed | tfidf={tfidf_sim:.4f} sbert={sbert_sim:.4f} | scores={structured_scores}")
     return {
+        "base_value":          round(base_value, 6),
         "shap_values":         grouped,
         "tfidf_sim":           round(tfidf_sim, 6),
         "sbert_sim":           round(sbert_sim, 6),
