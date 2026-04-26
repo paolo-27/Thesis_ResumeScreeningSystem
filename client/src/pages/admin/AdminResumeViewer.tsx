@@ -353,18 +353,17 @@ function DocxViewer({ url }: { url: string }) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [docxError, setDocxError] = useState<string | null>(null);
     const [docxLoading, setDocxLoading] = useState(true);
+    const [scale, setScale] = useState(1.0);
 
     useEffect(() => {
         let cancelled = false;
 
         async function loadDocx() {
             try {
-                // Use the 'api' instance so baseURL and JWT interceptors are applied correctly
                 const res = await api.get(url, { responseType: 'arraybuffer' });
                 if (cancelled || !containerRef.current) return;
 
                 const buffer = res.data;
-                // Clear previous render
                 containerRef.current.innerHTML = '';
 
                 await renderAsync(buffer, containerRef.current, undefined, {
@@ -399,25 +398,44 @@ function DocxViewer({ url }: { url: string }) {
     }, [url]);
 
     return (
-        <div className="flex-1 overflow-auto bg-gray-200 py-4 px-4">
-            {docxLoading && !docxError && (
-                <div className="flex flex-col items-center justify-center py-20 gap-3">
-                    <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-                    <span className="text-gray-500 text-sm">Loading document…</span>
-                </div>
-            )}
-            {docxError && (
-                <div className="flex flex-col items-center justify-center text-center p-8">
-                    <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
-                    <p className="text-red-600 font-medium mb-1">Failed to load document</p>
-                    <p className="text-gray-500 text-sm">{docxError}</p>
-                </div>
-            )}
-            {/* docx-preview renders into this div */}
-            <div
-                ref={containerRef}
-                className={`docx-container mx-auto ${docxLoading ? 'hidden' : ''}`}
+        <div className="flex flex-col h-full bg-gray-200">
+            <ViewerToolbar 
+                currentPage={1}
+                numPages={0}
+                onPageChange={() => {}}
+                scale={scale}
+                onScaleChange={setScale}
+                showPagination={false}
             />
+            
+            <div className="flex-1 overflow-auto py-4 px-2 sm:px-4 flex justify-center">
+                {docxLoading && !docxError && (
+                    <div className="flex flex-col items-center justify-center py-20 gap-3 w-full">
+                        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+                        <span className="text-gray-500 text-sm">Loading document…</span>
+                    </div>
+                )}
+                {docxError && (
+                    <div className="flex flex-col items-center justify-center text-center p-8 w-full">
+                        <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
+                        <p className="text-red-600 font-medium mb-1">Failed to load document</p>
+                        <p className="text-gray-500 text-sm">{docxError}</p>
+                    </div>
+                )}
+                <div 
+                    className="origin-top shadow-lg bg-white transition-transform duration-200"
+                    style={{ 
+                        transform: `scale(${scale})`,
+                        width: 'min-content',
+                        minWidth: '100%'
+                    }}
+                >
+                    <div
+                        ref={containerRef}
+                        className={`docx-container mx-auto p-4 sm:p-8 ${docxLoading ? 'hidden' : ''}`}
+                    />
+                </div>
+            </div>
         </div>
     );
 }
@@ -529,8 +547,8 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
 
     return (
         <div className="bg-gray-50 min-h-screen">
-            {/* Header — Fixed on mobile, sticky on desktop */}
-            <div className="bg-white border-b border-gray-200 sticky top-0 md:relative md:top-auto z-[40] shadow-sm">
+            {/* Header — Edge-to-edge by negating parent padding */}
+            <div className="bg-white border-b border-gray-200 sticky top-0 md:relative md:top-auto z-[40] shadow-sm -mx-4 sm:-mx-8 -mt-4 md:-mt-8 mb-6">
                 <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3 sm:py-4">
                     <div className="flex items-center justify-between gap-2">
                         {/* Left: Back + filename */}
@@ -578,7 +596,7 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                 </div>
             </div>
 
-            <div className="max-w-7xl mx-auto p-4 sm:p-8 space-y-6">
+            <div className="max-w-7xl mx-auto space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
                     {/* Main Content — Resume Viewer, shown first on mobile */}
                     <div className="order-1 lg:order-2 lg:col-span-3">
