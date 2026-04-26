@@ -144,7 +144,7 @@ function PdfViewer({ url }: { url: string }) {
 
     return (
         <div className="flex flex-col h-full bg-gray-200">
-            <ViewerToolbar 
+            <ViewerToolbar
                 currentPage={currentPage}
                 numPages={numPages}
                 onPageChange={setCurrentPage}
@@ -527,7 +527,6 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
         }
     };
 
-    return (
     return (
         <div className="bg-gray-50 min-h-screen">
             {/* Header — Fixed on mobile, sticky on desktop */}
