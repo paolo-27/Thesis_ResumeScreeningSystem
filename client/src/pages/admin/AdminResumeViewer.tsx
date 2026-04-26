@@ -469,9 +469,19 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
     const [currentPage, setCurrentPage] = useState(1);
     const [scale, setScale] = useState(1.0);
 
+    // Layout Hijack: Disable parent main scroll and enable internal scroll for "Locked Header" feel
+    useEffect(() => {
+        const parentMain = document.querySelector('main');
+        if (parentMain) {
+            const originalOverflow = parentMain.style.overflow;
+            parentMain.style.overflow = 'hidden';
+            return () => { parentMain.style.overflow = originalOverflow; };
+        }
+    }, []);
+
     if (loading) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="h-full bg-gray-50 flex items-center justify-center">
                 <Loader2 className="w-8 h-8 animate-spin text-emerald-600 mr-3" />
                 <p className="text-gray-500">Loading candidate data…</p>
             </div>
@@ -480,7 +490,7 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
 
     if (!candidate) {
         return (
-            <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+            <div className="h-full bg-gray-50 flex items-center justify-center">
                 <div className="text-center">
                     <p className="text-gray-500 mb-4">Candidate not found</p>
                     <Button onClick={onBack}>Go Back</Button>
@@ -529,11 +539,11 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
     };
 
     return (
-        <div className="bg-gray-50 min-h-screen">
-            {/* COMPOSITE STICKY HEADER - Locked at top on all screens, edge-to-edge */}
-            <div className="sticky top-0 z-[50] -mx-4 sm:-mx-8 -mt-4 md:-mt-8 shadow-md">
+        <div className="bg-gray-50 h-full flex flex-col -m-4 md:-m-8 overflow-hidden">
+            {/* LOCKED COMPOSITE HEADER */}
+            <div className="flex-shrink-0 z-[50] shadow-md border-b border-gray-200">
                 {/* Row 1: Back + Actions */}
-                <div className="bg-white border-b border-gray-200">
+                <div className="bg-white">
                     <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3 sm:py-4">
                         <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
@@ -589,39 +599,41 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                 />
             </div>
 
-            {/* Main Content Area */}
-            <div className="max-w-7xl mx-auto pt-6 space-y-6">
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
-                    <div className="order-1 lg:order-2 lg:col-span-3">
-                        <Card
-                            className="border-gray-200 overflow-hidden flex flex-col shadow-sm"
-                            style={{ height: 'calc(100vh - 200px)', minHeight: '600px' }}
-                        >
-                            {isPdf && (
-                                <PdfViewer 
-                                    url={resumeUrl} 
-                                    scale={scale} 
-                                    currentPage={currentPage} 
-                                    onLoadSuccess={setNumPages} 
-                                />
-                            )}
-                            {isDocx && (
-                                <DocxViewer 
-                                    url={resumeUrl} 
-                                    scale={scale} 
-                                    onLoadSuccess={setNumPages} 
-                                />
-                            )}
-                            {!hasResume && (
-                                <div className="flex-1 flex items-center justify-center bg-gray-100">
-                                    <div className="text-center p-8">
-                                        <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-                                        <h3 className="text-gray-900 mb-2">No Resume Available</h3>
+            {/* SCROLLABLE CONTENT BODY */}
+            <div className="flex-1 overflow-y-auto">
+                <div className="max-w-7xl mx-auto p-4 sm:p-8 space-y-6">
+                    <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
+                        <div className="order-1 lg:order-2 lg:col-span-3">
+                            <Card
+                                className="border-gray-200 overflow-hidden flex flex-col shadow-sm bg-white"
+                                style={{ height: 'calc(100vh - 200px)', minHeight: '600px' }}
+                            >
+                                {isPdf && (
+                                    <PdfViewer 
+                                        url={resumeUrl} 
+                                        scale={scale} 
+                                        currentPage={currentPage} 
+                                        onLoadSuccess={setNumPages} 
+                                    />
+                                )}
+                                {isDocx && (
+                                    <DocxViewer 
+                                        url={resumeUrl} 
+                                        scale={scale} 
+                                        onLoadSuccess={setNumPages} 
+                                    />
+                                )}
+                                {!hasResume && (
+                                    <div className="flex-1 flex items-center justify-center bg-gray-100">
+                                        <div className="text-center p-8">
+                                            <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
+                                            <h3 className="text-gray-900 mb-2">No Resume Available</h3>
+                                        </div>
                                     </div>
-                                </div>
-                            )}
-                        </Card>
-                    </div>
+                                )}
+                            </Card>
+                        </div>
+
 
 
                     {/* Sidebar — shown below PDF on mobile */}
