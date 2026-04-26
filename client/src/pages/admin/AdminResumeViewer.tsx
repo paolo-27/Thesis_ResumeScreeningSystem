@@ -147,42 +147,53 @@ function PdfViewer({ url, scale, currentPage, onLoadSuccess }: DocViewerProps) {
         return () => { isCancelled = true; };
     }, [url]);
 
+    const isLoading = !pdfBlob && !pdfError;
+
     return (
-        <div className="flex-1 overflow-auto bg-gray-200 flex justify-center p-4 sm:p-8">
+        <div className="relative w-full h-full bg-transparent flex flex-col items-center overflow-auto p-4 sm:p-12">
+            <style>
+                {`
+                canvas {
+                  background: transparent !important;
+                }
+                `}
+            </style>
+
+            {isLoading && (
+                <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-4">
+                    <Loader2 className="w-10 h-10 animate-spin text-emerald-600" />
+                    <span className="text-gray-500 font-medium tracking-tight">Accessing document...</span>
+                </div>
+            )}
+
             {pdfError ? (
-                <div className="max-w-md w-full my-auto flex flex-col items-center justify-center text-center p-8 bg-white rounded-xl shadow-sm border border-gray-100">
+                <div className="max-w-md w-full my-auto flex flex-col items-center justify-center text-center p-8 bg-white rounded-xl shadow-sm border border-gray-100 relative z-20">
                     <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
                     <p className="text-red-700 font-bold text-lg mb-2">Could not display PDF</p>
                     <p className="text-gray-500 text-sm leading-relaxed">{pdfError}</p>
                 </div>
-            ) : !pdfBlob ? (
-                <div className="flex flex-col items-center justify-center gap-4 my-auto">
-                    <Loader2 className="w-10 h-10 animate-spin text-emerald-600" />
-                    <span className="text-gray-500 font-medium tracking-tight">Accessing document...</span>
-                </div>
-            ) : (
-                <div className="inline-block py-2">
+            ) : pdfBlob && (
+                <div className="bg-white shadow-sm rounded-xl overflow-hidden relative z-0 transition-transform duration-200 origin-top">
                     <Document
                         file={pdfBlob}
                         onLoadSuccess={({ numPages }) => onLoadSuccess(numPages)}
                         onLoadError={(err) => setPdfError(err.message)}
                         loading={<div className="p-20"><Loader2 className="w-8 h-8 animate-spin text-emerald-600" /></div>}
                     >
-                        <div className="bg-white shadow-[0_0_20px_rgba(0,0,0,0.1)] mb-8 transition-transform duration-200 origin-top">
-                            <Page
-                                pageNumber={currentPage}
-                                scale={scale}
-                                renderAnnotationLayer
-                                renderTextLayer
-                                className="pdf-page-render"
-                            />
-                        </div>
+                        <Page
+                            pageNumber={currentPage}
+                            scale={scale}
+                            renderAnnotationLayer
+                            renderTextLayer
+                            className="pdf-page-render"
+                        />
                     </Document>
                 </div>
             )}
         </div>
     );
 }
+
 
 
 
@@ -387,22 +398,22 @@ function DocxViewer({ url, scale, onLoadSuccess }: Omit<DocViewerProps, 'current
     }, [url, onLoadSuccess]);
 
     return (
-        <div className="flex-1 overflow-auto bg-gray-200 flex justify-center p-4 sm:p-8">
+        <div className="relative w-full h-full bg-transparent flex flex-col items-center overflow-auto p-4 sm:p-12">
             {docxLoading && !docxError && (
-                <div className="flex flex-col items-center justify-center gap-4 my-auto">
+                <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-4">
                     <Loader2 className="w-10 h-10 animate-spin text-emerald-600" />
                     <span className="text-gray-500 font-medium">Extracting document...</span>
                 </div>
             )}
             {docxError && (
-                <div className="max-w-md w-full my-auto flex flex-col items-center justify-center text-center p-8 bg-white rounded-xl shadow-sm border border-gray-100">
+                <div className="max-w-md w-full my-auto flex flex-col items-center justify-center text-center p-8 bg-white rounded-xl shadow-sm border border-gray-100 relative z-20">
                     <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
                     <p className="text-red-700 font-bold mb-1">Could not display Word file</p>
                     <p className="text-gray-500 text-sm">{docxError}</p>
                 </div>
             )}
             <div 
-                className="bg-white shadow-[0_0_20px_rgba(0,0,0,0.1)] transition-transform duration-200 origin-top h-fit mb-12"
+                className="bg-white shadow-sm rounded-xl overflow-hidden relative z-0 transition-transform duration-200 origin-top h-fit mb-12"
                 style={{ 
                     transform: `scale(${scale})`,
                     width: 'min-content',
@@ -600,7 +611,7 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
                         <div className="order-1 lg:order-2 lg:col-span-3">
                         <div
-                            className="bg-gray-200 overflow-hidden flex flex-col shadow-inner"
+                            className="w-full h-full bg-transparent overflow-hidden flex flex-col"
                             style={{ height: 'calc(100vh - 200px)', minHeight: '600px' }}
                         >
                             {isPdf && (
