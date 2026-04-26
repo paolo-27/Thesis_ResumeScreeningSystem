@@ -37,8 +37,8 @@ def send_applicant_status_email(email: str, name: str, status: str, job_title: s
         
     try:
         response = resend.Emails.send({
-            "from": "Veridian <onboarding@resend.dev>",
-            "to": email,
+            "from": "Veridian <ApplicationUpdate@veri-dian.email>",
+            "to": [email],
             "subject": subject,
             "html": html_content
         })
