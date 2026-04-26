@@ -123,10 +123,15 @@ function ViewerToolbar({
 }
 
 // ─── PDF viewer sub-component ────────────────────────────────────────────────
-function PdfViewer({ url }: { url: string }) {
-    const [numPages, setNumPages] = useState<number>(0);
-    const [currentPage, setCurrentPage] = useState(1);
-    const [scale, setScale] = useState(1.0);
+// ─── PDF viewer sub-component ────────────────────────────────────────────────
+interface DocViewerProps {
+    url: string;
+    scale: number;
+    currentPage: number;
+    onLoadSuccess: (numPages: number) => void;
+}
+
+function PdfViewer({ url, scale, currentPage, onLoadSuccess }: DocViewerProps) {
     const [pdfError, setPdfError] = useState<string | null>(null);
     const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
 
@@ -143,57 +148,44 @@ function PdfViewer({ url }: { url: string }) {
     }, [url]);
 
     return (
-        <div className="flex flex-col h-full bg-gray-200">
-            <ViewerToolbar
-                currentPage={currentPage}
-                numPages={numPages}
-                onPageChange={setCurrentPage}
-                scale={scale}
-                onScaleChange={setScale}
-            />
-
-            {/* PDF canvas area */}
-            <div className="flex-1 overflow-auto flex justify-center py-4">
-                {pdfError ? (
-                    <div className="flex flex-col items-center justify-center text-center p-8">
-                        <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
-                        <p className="text-red-600 font-medium mb-1">Failed to load PDF</p>
-                        <p className="text-gray-500 text-sm">{pdfError}</p>
-                    </div>
-                ) : !pdfBlob ? (
-                    <div className="flex flex-col items-center justify-center py-20 gap-3">
-                        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-                        <span className="text-gray-500 text-sm">Fetching PDF securely…</span>
-                    </div>
-                ) : (
-                    <Document
-                        file={pdfBlob}
-                        onLoadSuccess={({ numPages }) => {
-                            setNumPages(numPages);
-                            setCurrentPage(1);
-                        }}
-                        onLoadError={(err) => setPdfError(err.message)}
-                        loading={
-                            <div className="flex flex-col items-center justify-center py-20 gap-3">
-                                <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-                                <span className="text-gray-500 text-sm">Rendering PDF…</span>
-                            </div>
-                        }
-                    >
-                        <div className="shadow-lg">
-                            <Page
-                                pageNumber={currentPage}
-                                scale={scale}
-                                renderAnnotationLayer
-                                renderTextLayer
-                            />
+        <div className="flex-1 overflow-auto flex justify-center py-4 bg-gray-200">
+            {pdfError ? (
+                <div className="flex flex-col items-center justify-center text-center p-8 bg-white m-4 rounded-lg shadow-sm">
+                    <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
+                    <p className="text-red-600 font-medium mb-1">Failed to load PDF</p>
+                    <p className="text-gray-500 text-sm">{pdfError}</p>
+                </div>
+            ) : !pdfBlob ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-3 w-full h-full">
+                    <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+                    <span className="text-gray-500 text-sm">Fetching PDF securely…</span>
+                </div>
+            ) : (
+                <Document
+                    file={pdfBlob}
+                    onLoadSuccess={({ numPages }) => onLoadSuccess(numPages)}
+                    onLoadError={(err) => setPdfError(err.message)}
+                    loading={
+                        <div className="flex flex-col items-center justify-center py-20 gap-3">
+                            <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+                            <span className="text-gray-500 text-sm">Rendering PDF…</span>
                         </div>
-                    </Document>
-                )}
-            </div>
+                    }
+                >
+                    <div className="shadow-lg mb-4">
+                        <Page
+                            pageNumber={currentPage}
+                            scale={scale}
+                            renderAnnotationLayer
+                            renderTextLayer
+                        />
+                    </div>
+                </Document>
+            )}
         </div>
     );
 }
+
 
 // SHAP Explainer Modal removed as requested — insights are directly in the Waterfall now.
 
@@ -349,11 +341,10 @@ function InsightsModal({
 }
 
 // ─── DOCX viewer sub-component ───────────────────────────────────────────────
-function DocxViewer({ url }: { url: string }) {
+function DocxViewer({ url, scale, onLoadSuccess }: Omit<DocViewerProps, 'currentPage'>) {
     const containerRef = useRef<HTMLDivElement>(null);
     const [docxError, setDocxError] = useState<string | null>(null);
     const [docxLoading, setDocxLoading] = useState(true);
-    const [scale, setScale] = useState(1.0);
 
     useEffect(() => {
         let cancelled = false;
@@ -384,7 +375,10 @@ function DocxViewer({ url }: { url: string }) {
                     renderEndnotes: true,
                     debug: false,
                 });
-                if (!cancelled) setDocxLoading(false);
+                if (!cancelled) {
+                    onLoadSuccess(1); // DOCX is usually 1 continuous view here
+                    setDocxLoading(false);
+                }
             } catch (err: unknown) {
                 if (!cancelled) {
                     setDocxError(err instanceof Error ? err.message : 'Unknown error');
@@ -395,46 +389,35 @@ function DocxViewer({ url }: { url: string }) {
 
         loadDocx();
         return () => { cancelled = true; };
-    }, [url]);
+    }, [url, onLoadSuccess]);
 
     return (
-        <div className="flex flex-col h-full bg-gray-200">
-            <ViewerToolbar 
-                currentPage={1}
-                numPages={0}
-                onPageChange={() => {}}
-                scale={scale}
-                onScaleChange={setScale}
-                showPagination={false}
-            />
-            
-            <div className="flex-1 overflow-auto py-4 px-2 sm:px-4 flex justify-center">
-                {docxLoading && !docxError && (
-                    <div className="flex flex-col items-center justify-center py-20 gap-3 w-full">
-                        <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
-                        <span className="text-gray-500 text-sm">Loading document…</span>
-                    </div>
-                )}
-                {docxError && (
-                    <div className="flex flex-col items-center justify-center text-center p-8 w-full">
-                        <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
-                        <p className="text-red-600 font-medium mb-1">Failed to load document</p>
-                        <p className="text-gray-500 text-sm">{docxError}</p>
-                    </div>
-                )}
-                <div 
-                    className="origin-top shadow-lg bg-white transition-transform duration-200"
-                    style={{ 
-                        transform: `scale(${scale})`,
-                        width: 'min-content',
-                        minWidth: '100%'
-                    }}
-                >
-                    <div
-                        ref={containerRef}
-                        className={`docx-container mx-auto p-4 sm:p-8 ${docxLoading ? 'hidden' : ''}`}
-                    />
+        <div className="flex-1 overflow-auto py-4 px-2 sm:px-4 flex justify-center bg-gray-200">
+            {docxLoading && !docxError && (
+                <div className="flex flex-col items-center justify-center py-20 gap-3 w-full">
+                    <Loader2 className="w-8 h-8 animate-spin text-emerald-600" />
+                    <span className="text-gray-500 text-sm">Loading document…</span>
                 </div>
+            )}
+            {docxError && (
+                <div className="flex flex-col items-center justify-center text-center p-8 w-full bg-white m-4 rounded-lg shadow-sm">
+                    <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
+                    <p className="text-red-600 font-medium mb-1">Failed to load document</p>
+                    <p className="text-gray-500 text-sm">{docxError}</p>
+                </div>
+            )}
+            <div 
+                className="origin-top shadow-lg bg-white transition-transform duration-200"
+                style={{ 
+                    transform: `scale(${scale})`,
+                    width: 'min-content',
+                    minWidth: '100%'
+                }}
+            >
+                <div
+                    ref={containerRef}
+                    className={`docx-container mx-auto p-4 sm:p-8 ${docxLoading ? 'hidden' : ''}`}
+                />
             </div>
         </div>
     );
@@ -482,6 +465,10 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
         }
     };
 
+    const [numPages, setNumPages] = useState(0);
+    const [currentPage, setCurrentPage] = useState(1);
+    const [scale, setScale] = useState(1.0);
+
     if (loading) {
         return (
             <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -514,16 +501,12 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
     const isShortlisted = candidate.status === 'Shortlisted';
     const isRejected = candidate.status === 'Rejected';
 
-    // Use a relative path — the 'api' instance (axios) will automatically prepend the correct baseURL
     const resumeUrl = `/api/candidates/${candidateId}/resume`;
-
-    // Determine file type from the stored filename/path
     const resumeFilename = candidate.resume_url ?? '';
     const isPdf = resumeFilename.toLowerCase().endsWith('.pdf');
     const isDocx = resumeFilename.toLowerCase().endsWith('.docx');
     const hasResume = isPdf || isDocx;
 
-    // Strip the '<candidate_id>_' prefix so we show the original filename
     const storedBasename = resumeFilename.split('/').pop() ?? '';
     const originalFilename = storedBasename.includes('_')
         ? storedBasename.split('_').slice(1).join('_')
@@ -547,81 +530,99 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
 
     return (
         <div className="bg-gray-50 min-h-screen">
-            {/* Header — Edge-to-edge by negating parent padding */}
-            <div className="bg-white border-b border-gray-200 sticky top-0 md:relative md:top-auto z-[40] shadow-sm -mx-4 sm:-mx-8 -mt-4 md:-mt-8 mb-6">
-                <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3 sm:py-4">
-                    <div className="flex items-center justify-between gap-2">
-                        {/* Left: Back + filename */}
-                        <div className="flex items-center gap-2 min-w-0">
-                            <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={onBack}
-                                className="text-gray-600 hover:text-gray-900 flex-shrink-0 px-2 sm:px-3"
-                            >
-                                <ArrowLeft className="w-4 h-4" />
-                                <span className="hidden sm:inline ml-1">Back</span>
-                            </Button>
-                            <div className="hidden sm:block h-8 w-px bg-gray-300 flex-shrink-0" />
+            {/* COMPOSITE STICKY HEADER - Locked at top on all screens, edge-to-edge */}
+            <div className="sticky top-0 z-[50] -mx-4 sm:-mx-8 -mt-4 md:-mt-8 shadow-md">
+                {/* Row 1: Back + Actions */}
+                <div className="bg-white border-b border-gray-200">
+                    <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3 sm:py-4">
+                        <div className="flex items-center justify-between gap-2">
                             <div className="flex items-center gap-2 min-w-0">
-                                <FileText className="w-4 h-4 text-gray-600 flex-shrink-0 hidden sm:block" />
-                                <h2 className="text-gray-900 truncate text-sm sm:text-base max-w-[120px] sm:max-w-[280px] md:max-w-[400px]">
-                                    {originalFilename || `${candidate.name}_Resume`}
-                                </h2>
+                                <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={onBack}
+                                    className="text-gray-600 hover:text-gray-900 flex-shrink-0 px-2 sm:px-3"
+                                >
+                                    <ArrowLeft className="w-4 h-4" />
+                                    <span className="hidden sm:inline ml-1">Back</span>
+                                </Button>
+                                <div className="hidden sm:block h-8 w-px bg-gray-300 flex-shrink-0" />
+                                <div className="flex items-center gap-2 min-w-0">
+                                    <FileText className="w-4 h-4 text-gray-600 flex-shrink-0 hidden sm:block" />
+                                    <h2 className="text-gray-900 font-bold truncate text-sm sm:text-base max-w-[140px] sm:max-w-[400px]">
+                                        {originalFilename || `${candidate.name}_Resume`}
+                                    </h2>
+                                </div>
                             </div>
-                        </div>
-                        {/* Right: action buttons */}
-                        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleDownload}
-                                disabled={!hasResume}
-                                className="px-2 sm:px-3 h-9"
-                            >
-                                <Download className="w-4 h-4" />
-                                <span className="hidden sm:inline ml-1">Download</span>
-                            </Button>
-                            <Button
-                                variant="outline"
-                                size="sm"
-                                onClick={handleViewInsights}
-                                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 px-2 sm:px-3 h-9"
-                            >
-                                <BarChart2 className="w-4 h-4" />
-                                <span className="hidden sm:inline ml-1 text-xs">Insights</span>
-                            </Button>
+                            <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleDownload}
+                                    disabled={!hasResume}
+                                    className="px-2 sm:px-3 h-9"
+                                >
+                                    <Download className="w-4 h-4" />
+                                    <span className="hidden sm:inline ml-1">Download</span>
+                                </Button>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={handleViewInsights}
+                                    className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 px-2 sm:px-3 h-9"
+                                >
+                                    <BarChart2 className="w-4 h-4" />
+                                    <span className="hidden sm:inline ml-1 text-xs">Insights</span>
+                                </Button>
+                            </div>
                         </div>
                     </div>
                 </div>
+                {/* Row 2: Shared Document Toolbar (Zoom/Pages) */}
+                <ViewerToolbar 
+                    currentPage={currentPage}
+                    numPages={numPages}
+                    onPageChange={setCurrentPage}
+                    scale={scale}
+                    onScaleChange={setScale}
+                    showPagination={isPdf}
+                />
             </div>
 
-            <div className="max-w-7xl mx-auto space-y-6">
+            {/* Main Content Area */}
+            <div className="max-w-7xl mx-auto pt-6 space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
-                    {/* Main Content — Resume Viewer, shown first on mobile */}
                     <div className="order-1 lg:order-2 lg:col-span-3">
                         <Card
                             className="border-gray-200 overflow-hidden flex flex-col shadow-sm"
-                            style={{ height: 'clamp(500px, calc(100vh - 180px), 900px)' }}
+                            style={{ height: 'calc(100vh - 200px)', minHeight: '600px' }}
                         >
-                            {isPdf && <PdfViewer url={resumeUrl} />}
-                            {isDocx && <DocxViewer url={resumeUrl} />}
+                            {isPdf && (
+                                <PdfViewer 
+                                    url={resumeUrl} 
+                                    scale={scale} 
+                                    currentPage={currentPage} 
+                                    onLoadSuccess={setNumPages} 
+                                />
+                            )}
+                            {isDocx && (
+                                <DocxViewer 
+                                    url={resumeUrl} 
+                                    scale={scale} 
+                                    onLoadSuccess={setNumPages} 
+                                />
+                            )}
                             {!hasResume && (
                                 <div className="flex-1 flex items-center justify-center bg-gray-100">
-                                    <div className="text-center p-8 sm:p-12">
-                                        <div className="w-16 h-16 sm:w-24 sm:h-24 bg-white rounded-2xl shadow-lg flex items-center justify-center mx-auto mb-4 sm:mb-6">
-                                            <FileText className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400" />
-                                        </div>
+                                    <div className="text-center p-8">
+                                        <FileText className="w-12 h-12 text-gray-300 mx-auto mb-4" />
                                         <h3 className="text-gray-900 mb-2">No Resume Available</h3>
-                                        <p className="text-gray-500 max-w-md text-sm">
-                                            No resume file was found for this candidate.
-                                            The file may not have been uploaded or is in an unsupported format.
-                                        </p>
                                     </div>
                                 </div>
                             )}
                         </Card>
                     </div>
+
 
                     {/* Sidebar — shown below PDF on mobile */}
                     <div className="order-2 lg:order-1 lg:col-span-1 space-y-4">
