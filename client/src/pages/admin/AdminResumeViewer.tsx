@@ -69,7 +69,7 @@ function ViewerToolbar({
     showPagination = true
 }: ViewerToolbarProps) {
     return (
-        <div className="flex items-center justify-between px-2 sm:px-4 py-2 bg-gray-100 border-b border-gray-200 flex-shrink-0 z-30">
+        <div className="flex items-center justify-between px-2 sm:px-4 py-2 bg-white border-b border-gray-100 flex-shrink-0 z-30">
             <div className="flex items-center gap-1 sm:gap-2">
                 {showPagination && (
                     <>
@@ -166,14 +166,8 @@ function PdfViewer({ url, scale, currentPage, onLoadSuccess }: DocViewerProps) {
                 </div>
             )}
 
-            {pdfError ? (
-                <div className="max-w-md w-full my-auto flex flex-col items-center justify-center text-center p-8 bg-white rounded-xl shadow-sm border border-gray-100 relative z-20">
-                    <AlertCircle className="w-12 h-12 text-red-400 mb-4" />
-                    <p className="text-red-700 font-bold text-lg mb-2">Could not display PDF</p>
-                    <p className="text-gray-500 text-sm leading-relaxed">{pdfError}</p>
-                </div>
-            ) : pdfBlob && (
-                <div className="bg-white shadow-sm rounded-xl overflow-hidden relative z-0 transition-transform duration-200 origin-top">
+            {pdfBlob && (
+                <div className="bg-white shadow-sm rounded-xl overflow-hidden relative z-0 transition-transform duration-200 origin-top h-fit mb-12">
                     <Document
                         file={pdfBlob}
                         onLoadSuccess={({ numPages }) => onLoadSuccess(numPages)}
@@ -185,11 +179,12 @@ function PdfViewer({ url, scale, currentPage, onLoadSuccess }: DocViewerProps) {
                             scale={scale}
                             renderAnnotationLayer
                             renderTextLayer
-                            className="pdf-page-render"
+                            className="pdf-page-render mx-auto"
                         />
                     </Document>
                 </div>
             )}
+
         </div>
     );
 }
@@ -547,7 +542,7 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
     return (
         <div className="bg-gray-50 h-full flex flex-col -m-4 md:-m-8 overflow-hidden">
             {/* LOCKED COMPOSITE HEADER */}
-            <div className="flex-shrink-0 z-[50] shadow-md border-b border-gray-200">
+            <div className="flex-shrink-0 z-[50] shadow-sm border-b border-gray-100">
                 {/* Row 1: Back + Actions */}
                 <div className="bg-white">
                     <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3 sm:py-4">
