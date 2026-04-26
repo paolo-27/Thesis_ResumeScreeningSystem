@@ -189,14 +189,14 @@ function InsightsModal({
     }, [onClose]);
 
     const fitColors: Record<string, string> = {
-        'Strong Fit':    'bg-emerald-100 text-emerald-800 border-emerald-200',
+        'Strong Fit': 'bg-emerald-100 text-emerald-800 border-emerald-200',
         'Potential Fit': 'bg-yellow-100 text-yellow-800 border-yellow-200',
-        'Low Fit':       'bg-red-100 text-red-800 border-red-200',
+        'Low Fit': 'bg-red-100 text-red-800 border-red-200',
     };
     const fitDot: Record<string, string> = {
-        'Strong Fit':    'bg-emerald-500',
+        'Strong Fit': 'bg-emerald-500',
         'Potential Fit': 'bg-yellow-500',
-        'Low Fit':       'bg-red-500',
+        'Low Fit': 'bg-red-500',
     };
 
     return (
@@ -243,75 +243,74 @@ function InsightsModal({
                         )}
 
                         {data && !loading && (
-                        <>
-                            {/* ── Overall Fit card ── */}
-                            <div className="flex flex-col gap-5">
-                                <div className="relative rounded-xl border border-gray-200 bg-gray-50 p-5">
+                            <>
+                                {/* ── Overall Fit card ── */}
+                                <div className="flex flex-col gap-5">
+                                    <div className="relative rounded-xl border border-gray-200 bg-gray-50 p-5">
 
-                                <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Overall Assessment</p>
-                                <div className="flex items-center gap-3">
-                                    <span className={`inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full border ${
-                                        fitColors[data.fitLabel] ?? 'bg-gray-100 text-gray-700'
-                                    }`}>
-                                        <span className={`w-2 h-2 rounded-full ${fitDot[data.fitLabel]}`} />
-                                        {data.fitLabel}
-                                    </span>
-                                    <span className="text-2xl font-bold text-gray-900">{data.fitScore.toFixed(1)}%</span>
-                                    <span className="text-xs text-gray-400">match probability</span>
-                                </div>
-                            </div>
+                                        <p className="text-xs font-medium text-gray-500 mb-2 uppercase tracking-wide">Overall Assessment</p>
+                                        <div className="flex items-center gap-3">
+                                            <span className={`inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1 rounded-full border ${fitColors[data.fitLabel] ?? 'bg-gray-100 text-gray-700'
+                                                }`}>
+                                                <span className={`w-2 h-2 rounded-full ${fitDot[data.fitLabel]}`} />
+                                                {data.fitLabel}
+                                            </span>
+                                            <span className="text-2xl font-bold text-gray-900">{data.fitScore.toFixed(1)}%</span>
+                                            <span className="text-xs text-gray-400">match probability</span>
+                                        </div>
+                                    </div>
 
-                                {/* ── The Individual Story (Waterfall) ── */}
-                                <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
-                                    <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
-                                        <BarChart2 className="w-4 h-4 text-emerald-600" />
-                                        The Individual Story
-                                    </h3>
-                                    
-                                    <div className="h-64 w-full mb-2">
-                                        <ResponsiveContainer width="100%" height="100%">
-                                            <BarChart 
-                                                data={data.waterfallData} 
-                                                layout="vertical"
-                                                margin={{ top: 0, right: 30, left: 10, bottom: 0 }}
-                                            >
-                                                <XAxis type="number" domain={[0, 100]} hide />
-                                                <YAxis 
-                                                    type="category" 
-                                                    dataKey="name" 
-                                                    width={110} 
-                                                    tick={{fontSize: 11, fill: '#4b5563'}}
-                                                    axisLine={false}
-                                                    tickLine={false}
-                                                />
-                                                <Tooltip 
-                                                    formatter={(value: any, name: any, props: any) => {
-                                                        if (props.payload.isTotal) return [`${props.payload.value.toFixed(1)}%`, 'Score'];
-                                                        const prefix = props.payload.value > 0 ? '+' : '';
-                                                        return [`${prefix}${props.payload.value.toFixed(1)}%`, 'Impact'];
-                                                    }}
-                                                    contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                                    cursor={{fill: '#f3f4f6'}}
-                                                />
-                                                <Bar dataKey="range" isAnimationActive={false} radius={[0, 2, 2, 0]}>
-                                                    {data.waterfallData.map((entry, index) => {
-                                                        if (entry.isTotal) return <Cell key={`cell-${index}`} fill="#94a3b8" />; // slate-400
-                                                        return <Cell key={`cell-${index}`} fill={entry.value > 0 ? "#10b981" : "#ef4444"} />; // emerald-500 / red-500
-                                                    })}
-                                                </Bar>
-                                            </BarChart>
-                                        </ResponsiveContainer>
-                                    </div>
-                                    
-                                    {/* ── Insight Maker ── */}
-                                    <div className="mt-4 pt-4 border-t border-gray-100">
-                                        <p className="text-[13px] text-gray-700 font-medium leading-relaxed">
-                                            {data.insightStory}
-                                        </p>
+                                    {/* ── The Individual Story (Waterfall) ── */}
+                                    <div className="rounded-xl border border-gray-200 bg-white p-5 shadow-sm">
+                                        <h3 className="text-sm font-semibold text-gray-800 mb-4 flex items-center gap-2">
+                                            <BarChart2 className="w-4 h-4 text-emerald-600" />
+                                            Prediction Breakdown
+                                        </h3>
+
+                                        <div className="h-64 w-full mb-2">
+                                            <ResponsiveContainer width="100%" height="100%">
+                                                <BarChart
+                                                    data={data.waterfallData}
+                                                    layout="vertical"
+                                                    margin={{ top: 0, right: 30, left: 10, bottom: 0 }}
+                                                >
+                                                    <XAxis type="number" domain={[0, 100]} hide />
+                                                    <YAxis
+                                                        type="category"
+                                                        dataKey="name"
+                                                        width={110}
+                                                        tick={{ fontSize: 11, fill: '#4b5563' }}
+                                                        axisLine={false}
+                                                        tickLine={false}
+                                                    />
+                                                    <Tooltip
+                                                        formatter={(value: any, name: any, props: any) => {
+                                                            if (props.payload.isTotal) return [`${props.payload.value.toFixed(1)}%`, 'Score'];
+                                                            const prefix = props.payload.value > 0 ? '+' : '';
+                                                            return [`${prefix}${props.payload.value.toFixed(1)}%`, 'Impact'];
+                                                        }}
+                                                        contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                                        cursor={{ fill: '#f3f4f6' }}
+                                                    />
+                                                    <Bar dataKey="range" isAnimationActive={false} radius={[0, 2, 2, 0]}>
+                                                        {data.waterfallData.map((entry, index) => {
+                                                            if (entry.isTotal) return <Cell key={`cell-${index}`} fill="#94a3b8" />; // slate-400
+                                                            return <Cell key={`cell-${index}`} fill={entry.value > 0 ? "#10b981" : "#ef4444"} />; // emerald-500 / red-500
+                                                        })}
+                                                    </Bar>
+                                                </BarChart>
+                                            </ResponsiveContainer>
+                                        </div>
+
+                                        {/* ── Insight Maker ── */}
+                                        <div className="mt-4 pt-4 border-t border-gray-100">
+                                            <p className="text-[13px] text-gray-700 font-medium leading-relaxed">
+                                                {data.insightStory}
+                                            </p>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
-                        </>
+                            </>
                         )}
                     </div>
                 </div>
