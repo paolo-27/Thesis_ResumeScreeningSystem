@@ -2294,10 +2294,12 @@ def role_family_relation(resume_text, job_description):
     return resume_families, jd_families, "unrelated"
 
 
-def skills_match_score(resume_text, job_description):
+def skills_match_score(resume_text, job_description, tfidf_sim=0.0, sbert_sim=0.0):
     jd_skills = extract_skills(job_description)
     resume_skills = extract_skills(resume_text)
-
+ 
+    has_semantic_signal = tfidf_sim > 0 or sbert_sim > 0
+ 
     if not jd_skills:
         # Only give benefit of the doubt if the JD looks like real human text.
         # A garbage/random string should return 0, not 1.
@@ -2306,15 +2308,15 @@ def skills_match_score(resume_text, job_description):
         if not jd_domains and not jd_families:
             return 0  # JD has no recognizable content at all
         return 1  # Real JD, just no explicit skills listed
-
+ 
     overlap = len(jd_skills.intersection(resume_skills))
     ratio = overlap / max(len(jd_skills), 1)
-
+ 
     if ratio >= 0.60 or overlap >= 5:
         return 2
     if ratio >= 0.25 or overlap >= 2:
         return 1
-
+ 
     shared_skills = jd_skills.intersection(resume_skills)
     jd_domains = extract_domains(job_description)
     resume_domains = extract_domains(resume_text)
@@ -2338,21 +2340,20 @@ def skills_match_score(resume_text, job_description):
         family_skill_bridge = family_skill_bridge or bool(
             resume_skills.intersection(ROLE_FAMILY_SKILL_HINTS.get(family, set()))
         )
-
+ 
     if overlap >= 1 and technical_bridge and related_technical_context:
         return 1
-
+ 
     if overlap == 0 and related_technical_context and resume_technical_foundation and jd_advanced_technical:
-        return 1
-
+        return 1 if has_semantic_signal else 0
+ 
     if family_relation == "same" and (overlap >= 1 or family_skill_bridge):
-        return 1
-
+        return 1 if has_semantic_signal else 0
+ 
     if family_relation == "adjacent" and (technical_bridge or family_skill_bridge):
-        return 1
-
+        return 1 if has_semantic_signal else 0
+ 
     return 0
-
 
 def extract_domains(text):
     text = normalize_text(text)
@@ -2402,7 +2403,7 @@ def domain_alignment_score(resume_text, job_description):
     for jd_domain in jd_domains:
         valid_domains = RELATED_DOMAINS.get(jd_domain, {jd_domain}) - {jd_domain}
         if resume_domains.intersection(valid_domains) and skills_score >= 1:
-            return 1
+            return 1 if has_semantic_signal else 0
 
     return 0
 
