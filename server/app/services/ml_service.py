@@ -2663,9 +2663,12 @@ def get_candidate_insights(resume_text: str, job_description: str) -> dict:
     # Extract base expected value for the waterfall plot
     exp_val = explainer.expected_value
     if isinstance(exp_val, list) or isinstance(exp_val, np.ndarray):
-        base_value = float(exp_val[1]) if len(exp_val) > 1 else float(exp_val[0])
+        base_logit = float(exp_val[1]) if len(exp_val) > 1 else float(exp_val[0])
     else:
-        base_value = float(exp_val)
+        base_logit = float(exp_val)
+    
+    # Convert logit to probability space so the waterfall is consistent with final score
+    base_value = 1.0 / (1.0 + np.exp(-base_logit))
 
     # Extract structured dimension scores from the feature vector
     # Feature vector layout: [0]=tfidf, [1]=sbert, [2]=skills(0-2), [3]=exp(0-3), [4]=edu(0-2), [5]=domain(0-1)

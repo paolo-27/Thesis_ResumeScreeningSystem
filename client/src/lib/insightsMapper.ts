@@ -55,29 +55,39 @@ function formatDomainList(domains: string[]): string {
 
 // ─── Insight Maker ────────────────────────────────────────────────────────────
 
-function buildInsightStory(shapValues: ShapValue[]): string {
-    const sorted = [...shapValues].sort((a, b) => b.value - a.value);
-    const topPos = sorted.filter(v => v.value > 0);
-    const topNeg = sorted.filter(v => v.value < 0).reverse(); // largest negative first
+function buildInsightStory(shapValues: ShapValue[], scale: number): string {
+    const impacts = shapValues.map(sv => ({
+        label: translateShapLabel(sv.label),
+        impact: sv.value * scale * 100
+    }));
+
+    const topPos = impacts.filter(v => v.impact > 0).sort((a, b) => b.impact - a.impact);
+    const topNeg = impacts.filter(v => v.impact < 0).sort((a, b) => a.impact - b.impact); // most negative first
 
     if (topPos.length === 0 && topNeg.length === 0) {
         return "The AI model evaluated the candidate based on multiple factors without identifying any single dominant driver.";
     }
 
-    if (topPos.length > 0 && topNeg.length > 0) {
-        const p = topPos[0];
-        const n = topNeg[0];
-        
-        // Decisive/Objective tone as requested
-        return `The model predicts a higher likelihood of success driven predominantly by ${translateShapLabel(p.label)}, which decisively outweighs lower alignment in ${translateShapLabel(n.label)}.`;
+    const p = topPos[0];
+    const n = topNeg[0];
+
+    // Case 1: Both positive and negative drivers exist
+    if (p && n) {
+        if (Math.abs(p.impact) > Math.abs(n.impact)) {
+            return `The model predicts a higher likelihood of success driven predominantly by ${p.label}, which decisively outweighs lower alignment in ${n.label}.`;
+        } else {
+            return `While ${p.label} contributes positively, internal scoring reflects a lower fit primarily due to significant gaps in ${n.label}.`;
+        }
     }
 
-    if (topPos.length > 0) {
-        return `The model decisively identified that the candidate's ${translateShapLabel(topPos[0].label)} is a highly strong predictor of success for this role.`;
+    // Case 2: Only positive drivers
+    if (p) {
+        return `The model decisively identified that the candidate's ${p.label} is the strongest predictor of success for this role.`;
     }
 
-    if (topNeg.length > 0) {
-        return `The AI model identified ${translateShapLabel(topNeg[0].label)} as the primary factor significantly reducing the candidate's overall fit score.`;
+    // Case 3: Only negative drivers (or neutral ones)
+    if (n) {
+        return `The AI model identified ${n.label} as the primary factor significantly reducing the candidate's overall fit score.`;
     }
 
     return "Objective feature analysis is complete.";
@@ -85,19 +95,11 @@ function buildInsightStory(shapValues: ShapValue[]): string {
 
 // ─── Waterfall Data ───────────────────────────────────────────────────────────
 
-function buildWaterfallData(raw: RawInsightsResponse, finalScore: number): WaterfallNode[] {
+function buildWaterfallData(raw: RawInsightsResponse, finalScore: number, scale: number): WaterfallNode[] {
     const data: WaterfallNode[] = [];
     const basePct = raw.base_value * 100;
     const finalPct = finalScore * 100;
     
-    // Calculate total impact needed to bridge from base to final
-    const totalImpactNeeded = finalPct - basePct;
-    const rawShapSum = raw.shap_values.reduce((sum, item) => sum + item.value, 0);
-    
-    // Scaling factor to ensure the waterfall adds up perfectly in the UI
-    // If raw sum is 0 (unlikely for a match), we skip scaling
-    const scale = rawShapSum !== 0 ? totalImpactNeeded / (rawShapSum * 100) : 1;
-
     let currentPct = basePct;
     
     data.push({
@@ -152,12 +154,20 @@ export function mapInsightsToUI(
     raw: RawInsightsResponse,
     probabilityScore: number,
 ): CandidateSummaryData {
+    const basePct = raw.base_value * 100;
+    const finalPct = probabilityScore * 100;
+    
+    // Calculate scaling factor once to ensure consistency between chart and narrative
+    const totalImpactNeeded = finalPct - basePct;
+    const rawShapSum = raw.shap_values.reduce((sum, item) => sum + item.value, 0);
+    const scale = rawShapSum !== 0 ? totalImpactNeeded / (rawShapSum * 100) : 1;
+
     return {
         fitLabel: getFitLabel(probabilityScore),
         fitScore: Math.round(probabilityScore * 100 * 10) / 10,
         baseValue: Math.round(raw.base_value * 100 * 10) / 10,
-        waterfallData: buildWaterfallData(raw, probabilityScore),
-        insightStory: buildInsightStory(raw.shap_values),
+        waterfallData: buildWaterfallData(raw, probabilityScore, scale),
+        insightStory: buildInsightStory(raw.shap_values, scale),
         modelExplanation: buildModelExplanation(raw),
     };
 }
