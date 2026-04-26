@@ -501,9 +501,9 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
     };
 
     return (
-        <div className="min-h-screen bg-gray-50">
-            {/* Header */}
-            <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="-m-4 md:-m-8 bg-gray-50">
+            {/* Header — bleeds to the true edges of the scroll container so sticky top-0 works without a gap */}
+            <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
                 <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3 sm:py-4">
                     <div className="flex items-center justify-between gap-2">
                         {/* Left: Back + filename */}
