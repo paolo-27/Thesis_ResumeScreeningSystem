@@ -123,7 +123,6 @@ function ViewerToolbar({
 }
 
 // ─── PDF viewer sub-component ────────────────────────────────────────────────
-// ─── PDF viewer sub-component ────────────────────────────────────────────────
 interface DocViewerProps {
     url: string;
     scale: number;
@@ -150,7 +149,7 @@ function PdfViewer({ url, scale, currentPage, onLoadSuccess }: DocViewerProps) {
     const isLoading = !pdfBlob && !pdfError;
 
     return (
-        <div className="relative w-full h-full bg-transparent flex flex-col items-center overflow-auto p-4 sm:p-12">
+        <div className="relative w-full h-fit min-h-[600px] bg-transparent flex flex-col items-center p-4 sm:p-12">
             <style>
                 {`
                 canvas {
@@ -393,7 +392,7 @@ function DocxViewer({ url, scale, onLoadSuccess }: Omit<DocViewerProps, 'current
     }, [url, onLoadSuccess]);
 
     return (
-        <div className="relative w-full h-full bg-transparent flex flex-col items-center overflow-auto p-4 sm:p-12">
+        <div className="relative w-full h-fit min-h-[600px] bg-transparent flex flex-col items-center p-4 sm:p-12">
             {docxLoading && !docxError && (
                 <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-4">
                     <Loader2 className="w-10 h-10 animate-spin text-emerald-600" />
@@ -605,10 +604,7 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                 <div className="max-w-7xl mx-auto p-4 sm:p-8 space-y-6">
                     <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
                         <div className="order-1 lg:order-2 lg:col-span-3">
-                        <div
-                            className="w-full h-full bg-transparent overflow-hidden flex flex-col"
-                            style={{ height: 'calc(100vh - 200px)', minHeight: '600px' }}
-                        >
+                        <div className="w-full bg-transparent overflow-visible flex flex-col">
                             {isPdf && (
                                 <PdfViewer 
                                     url={resumeUrl} 
@@ -625,7 +621,7 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                                 />
                             )}
                             {!hasResume && (
-                                <div className="flex-1 flex items-center justify-center bg-gray-100">
+                                <div className="flex-1 flex items-center justify-center bg-gray-100 py-20 rounded-2xl">
                                     <div className="text-center p-12 bg-white rounded-2xl shadow-sm mx-4">
                                         <FileText className="w-16 h-16 text-gray-200 mx-auto mb-4" />
                                         <h3 className="text-gray-900 font-bold mb-2">No Resume Found</h3>
