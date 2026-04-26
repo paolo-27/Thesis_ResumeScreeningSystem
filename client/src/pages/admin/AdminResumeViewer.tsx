@@ -713,6 +713,7 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                     </div>
                 </div>
             </div>
+        </div>
 
             {/* Insights modal */}
             {insightsOpen && (
