@@ -149,7 +149,7 @@ function PdfViewer({ url, scale, currentPage, onLoadSuccess }: DocViewerProps) {
     const isLoading = !pdfBlob && !pdfError;
 
     return (
-        <div className="relative w-full h-fit min-h-[600px] bg-transparent flex flex-col items-center p-4 sm:p-12">
+        <div className="relative w-full h-fit min-h-[600px] bg-transparent flex flex-col items-center p-4 sm:p-12 overflow-x-auto">
             <style>
                 {`
                 canvas {
@@ -392,7 +392,7 @@ function DocxViewer({ url, scale, onLoadSuccess }: Omit<DocViewerProps, 'current
     }, [url, onLoadSuccess]);
 
     return (
-        <div className="relative w-full h-fit min-h-[600px] bg-transparent flex flex-col items-center p-4 sm:p-12">
+        <div className="relative w-full h-fit min-h-[600px] bg-transparent flex flex-col items-center p-4 sm:p-12 overflow-x-auto">
             {docxLoading && !docxError && (
                 <div className="absolute inset-0 bg-white/60 backdrop-blur-sm z-10 flex flex-col items-center justify-center gap-4">
                     <Loader2 className="w-10 h-10 animate-spin text-emerald-600" />
