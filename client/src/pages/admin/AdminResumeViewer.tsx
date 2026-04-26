@@ -330,12 +330,11 @@ function DocxViewer({ url }: { url: string }) {
 
         async function loadDocx() {
             try {
-                const headers = { Authorization: `Bearer ${localStorage.getItem('veridian_token')}` };
-                const res = await fetch(url, { headers });
-                if (!res.ok) throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-                const buffer = await res.arrayBuffer();
+                // Use the 'api' instance so baseURL and JWT interceptors are applied correctly
+                const res = await api.get(url, { responseType: 'arraybuffer' });
                 if (cancelled || !containerRef.current) return;
 
+                const buffer = res.data;
                 // Clear previous render
                 containerRef.current.innerHTML = '';
 
@@ -468,8 +467,8 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
     const isShortlisted = candidate.status === 'Shortlisted';
     const isRejected = candidate.status === 'Rejected';
 
-    // Build the resume URL pointing at our new backend endpoint
-    const resumeUrl = `${api.defaults.baseURL ?? ''}/api/candidates/${candidateId}/resume`;
+    // Use a relative path — the 'api' instance (axios) will automatically prepend the correct baseURL
+    const resumeUrl = `/api/candidates/${candidateId}/resume`;
 
     // Determine file type from the stored filename/path
     const resumeFilename = candidate.resume_url ?? '';
