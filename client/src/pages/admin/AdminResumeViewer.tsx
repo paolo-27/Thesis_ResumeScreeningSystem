@@ -504,50 +504,67 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
         <div className="min-h-screen bg-gray-50">
             {/* Header */}
             <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-                <div className="max-w-7xl mx-auto px-8 py-4">
-                    <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-4">
+                <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3 sm:py-4">
+                    <div className="flex items-center justify-between gap-2">
+                        {/* Left: Back + filename */}
+                        <div className="flex items-center gap-2 min-w-0">
                             <Button
                                 variant="ghost"
+                                size="sm"
                                 onClick={onBack}
-                                className="text-gray-600 hover:text-gray-900"
+                                className="text-gray-600 hover:text-gray-900 flex-shrink-0 px-2 sm:px-3"
                             >
-                                <ArrowLeft className="w-4 h-4 mr-2" />
-                                Back
+                                <ArrowLeft className="w-4 h-4" />
+                                <span className="hidden sm:inline ml-1">Back</span>
                             </Button>
-                            <div className="h-8 w-px bg-gray-300" />
-                            <div className="flex items-center gap-3">
-                                <FileText className="w-5 h-5 text-gray-600" />
-                                <h2 className="text-gray-900 truncate max-w-[200px] sm:max-w-[400px]">
+                            <div className="hidden sm:block h-8 w-px bg-gray-300 flex-shrink-0" />
+                            <div className="flex items-center gap-2 min-w-0">
+                                <FileText className="w-4 h-4 text-gray-600 flex-shrink-0 hidden sm:block" />
+                                <h2 className="text-gray-900 truncate text-sm sm:text-base max-w-[120px] sm:max-w-[280px] md:max-w-[400px]">
                                     {originalFilename || `${candidate.name}_Resume`}
                                 </h2>
-                                <Badge className={`${rankColor.bg} ${rankColor.text}`}>
+                                <Badge className={`${rankColor.bg} ${rankColor.text} hidden sm:inline-flex flex-shrink-0 text-xs`}>
                                     {(candidate.probability_score * 100).toFixed(2)}% • {rankColor.badge}
                                 </Badge>
                             </div>
                         </div>
-                        <div className="flex items-center gap-2">
-                            <Button variant="outline" onClick={handleDownload} disabled={!hasResume}>
-                                <Download className="w-4 h-4 mr-2" />
-                                Download
+                        {/* Right: action buttons */}
+                        <div className="flex items-center gap-1 sm:gap-2 flex-shrink-0">
+                            <Button
+                                variant="outline"
+                                size="sm"
+                                onClick={handleDownload}
+                                disabled={!hasResume}
+                                className="px-2 sm:px-3"
+                            >
+                                <Download className="w-4 h-4" />
+                                <span className="hidden sm:inline ml-1">Download</span>
                             </Button>
                             <Button
                                 variant="outline"
+                                size="sm"
                                 onClick={handleViewInsights}
-                                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50"
+                                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 px-2 sm:px-3"
                             >
-                                <BarChart2 className="w-4 h-4 mr-2" />
-                                View Insights
+                                <BarChart2 className="w-4 h-4" />
+                                <span className="hidden sm:inline ml-1">View Insights</span>
                             </Button>
                         </div>
+                    </div>
+                    {/* Mobile-only score badge row */}
+                    <div className="sm:hidden mt-2 flex items-center gap-2">
+                        <Badge className={`${rankColor.bg} ${rankColor.text} text-xs`}>
+                            {(candidate.probability_score * 100).toFixed(2)}% • {rankColor.badge}
+                        </Badge>
+                        <span className="text-xs text-gray-500">{candidate.name}</span>
                     </div>
                 </div>
             </div>
 
-            <div className="max-w-7xl mx-auto p-8">
-                <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
-                    {/* Sidebar */}
-                    <div className="lg:col-span-1 space-y-4">
+            <div className="max-w-7xl mx-auto p-4 sm:p-8">
+                <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
+                    {/* Sidebar — shown below PDF on mobile, left column on desktop */}
+                    <div className="order-2 lg:order-1 lg:col-span-1 space-y-4">
                         <Card className="p-6 border-gray-200">
                             <h3 className="text-gray-900 mb-4">Resume Details</h3>
                             <div className="space-y-3">
@@ -641,19 +658,22 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                         )}
                     </div>
 
-                    {/* Main Content — Resume Viewer */}
-                    <div className="lg:col-span-3">
-                        <Card className="border-gray-200 overflow-hidden flex flex-col" style={{ height: 'calc(100vh - 200px)' }}>
+                    {/* Main Content — Resume Viewer, shown first on mobile */}
+                    <div className="order-1 lg:order-2 lg:col-span-3">
+                        <Card
+                            className="border-gray-200 overflow-hidden flex flex-col"
+                            style={{ height: 'clamp(60vh, calc(100vh - 200px), 90vh)' }}
+                        >
                             {isPdf && <PdfViewer url={resumeUrl} />}
                             {isDocx && <DocxViewer url={resumeUrl} />}
                             {!hasResume && (
                                 <div className="flex-1 flex items-center justify-center bg-gray-100">
-                                    <div className="text-center p-12">
-                                        <div className="w-24 h-24 bg-white rounded-2xl shadow-lg flex items-center justify-center mx-auto mb-6">
-                                            <FileText className="w-12 h-12 text-gray-400" />
+                                    <div className="text-center p-8 sm:p-12">
+                                        <div className="w-16 h-16 sm:w-24 sm:h-24 bg-white rounded-2xl shadow-lg flex items-center justify-center mx-auto mb-4 sm:mb-6">
+                                            <FileText className="w-8 h-8 sm:w-12 sm:h-12 text-gray-400" />
                                         </div>
                                         <h3 className="text-gray-900 mb-2">No Resume Available</h3>
-                                        <p className="text-gray-500 max-w-md">
+                                        <p className="text-gray-500 max-w-md text-sm">
                                             No resume file was found for this candidate.
                                             The file may not have been uploaded or is in an unsupported format.
                                         </p>
