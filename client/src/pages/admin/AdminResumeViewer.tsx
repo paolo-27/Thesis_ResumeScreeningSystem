@@ -50,13 +50,83 @@ interface AdminResumeViewerProps {
     onAction?: (action: 'shortlist' | 'reject') => void;
 }
 
+// ─── Shared Toolbar Components ──────────────────────────────────────────────
+interface ViewerToolbarProps {
+    currentPage: number;
+    numPages: number;
+    onPageChange: (page: number) => void;
+    scale: number;
+    onScaleChange: (scale: number) => void;
+    showPagination?: boolean;
+}
 
+function ViewerToolbar({
+    currentPage,
+    numPages,
+    onPageChange,
+    scale,
+    onScaleChange,
+    showPagination = true
+}: ViewerToolbarProps) {
+    return (
+        <div className="flex items-center justify-between px-2 sm:px-4 py-2 bg-gray-100 border-b border-gray-200 flex-shrink-0 z-30">
+            <div className="flex items-center gap-1 sm:gap-2">
+                {showPagination && (
+                    <>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onPageChange(Math.max(1, currentPage - 1))}
+                            disabled={currentPage <= 1 || numPages === 0}
+                            className="h-8 w-8 sm:w-auto sm:px-2 p-0"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <span className="text-[10px] sm:text-sm text-gray-600 min-w-[50px] sm:min-w-[80px] text-center">
+                            {numPages > 0 ? `${currentPage} / ${numPages}` : '—'}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => onPageChange(Math.min(numPages, currentPage + 1))}
+                            disabled={currentPage >= numPages || numPages === 0}
+                            className="h-8 w-8 sm:w-auto sm:px-2 p-0"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </Button>
+                    </>
+                )}
+            </div>
+            <div className="flex items-center gap-1 sm:gap-2">
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onScaleChange(Math.max(0.5, +(scale - 0.2).toFixed(1)))}
+                    className="h-8 w-8 sm:w-auto sm:px-2 p-0"
+                >
+                    <ZoomOut className="w-4 h-4" />
+                </Button>
+                <span className="text-[10px] sm:text-sm text-gray-600 min-w-[30px] sm:min-w-[45px] text-center">
+                    {Math.round(scale * 100)}%
+                </span>
+                <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => onScaleChange(Math.min(3, +(scale + 0.2).toFixed(1)))}
+                    className="h-8 w-8 sm:w-auto sm:px-2 p-0"
+                >
+                    <ZoomIn className="w-4 h-4" />
+                </Button>
+            </div>
+        </div>
+    );
+}
 
 // ─── PDF viewer sub-component ────────────────────────────────────────────────
 function PdfViewer({ url }: { url: string }) {
     const [numPages, setNumPages] = useState<number>(0);
     const [currentPage, setCurrentPage] = useState(1);
-    const [scale, setScale] = useState(1.2);
+    const [scale, setScale] = useState(1.0);
     const [pdfError, setPdfError] = useState<string | null>(null);
     const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
 
@@ -73,59 +143,17 @@ function PdfViewer({ url }: { url: string }) {
     }, [url]);
 
     return (
-        <div className="flex flex-col h-full">
-            {/* Toolbar */}
-            <div className="flex items-center justify-between px-4 py-2 bg-gray-100 border-b border-gray-200 flex-shrink-0">
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
-                        disabled={currentPage <= 1 || !pdfBlob}
-                        className="h-7 px-2"
-                    >
-                        <ChevronLeft className="w-4 h-4" />
-                    </Button>
-                    <span className="text-sm text-gray-600 min-w-[80px] text-center">
-                        {numPages > 0 ? `${currentPage} / ${numPages}` : '—'}
-                    </span>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setCurrentPage(p => Math.min(numPages, p + 1))}
-                        disabled={currentPage >= numPages || !pdfBlob}
-                        className="h-7 px-2"
-                    >
-                        <ChevronRight className="w-4 h-4" />
-                    </Button>
-                </div>
-                <div className="flex items-center gap-2">
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setScale(s => Math.max(0.5, +(s - 0.2).toFixed(1)))}
-                        className="h-7 px-2"
-                        disabled={!pdfBlob}
-                    >
-                        <ZoomOut className="w-4 h-4" />
-                    </Button>
-                    <span className="text-sm text-gray-600 min-w-[45px] text-center">
-                        {Math.round(scale * 100)}%
-                    </span>
-                    <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={() => setScale(s => Math.min(3, +(s + 0.2).toFixed(1)))}
-                        className="h-7 px-2"
-                        disabled={!pdfBlob}
-                    >
-                        <ZoomIn className="w-4 h-4" />
-                    </Button>
-                </div>
-            </div>
+        <div className="flex flex-col h-full bg-gray-200">
+            <ViewerToolbar 
+                currentPage={currentPage}
+                numPages={numPages}
+                onPageChange={setCurrentPage}
+                scale={scale}
+                onScaleChange={setScale}
+            />
 
             {/* PDF canvas area */}
-            <div className="flex-1 overflow-auto flex justify-center bg-gray-200 py-4">
+            <div className="flex-1 overflow-auto flex justify-center py-4">
                 {pdfError ? (
                     <div className="flex flex-col items-center justify-center text-center p-8">
                         <AlertCircle className="w-10 h-10 text-red-400 mb-3" />
@@ -152,13 +180,14 @@ function PdfViewer({ url }: { url: string }) {
                             </div>
                         }
                     >
-                        <Page
-                            pageNumber={currentPage}
-                            scale={scale}
-                            className="shadow-lg"
-                            renderAnnotationLayer
-                            renderTextLayer
-                        />
+                        <div className="shadow-lg">
+                            <Page
+                                pageNumber={currentPage}
+                                scale={scale}
+                                renderAnnotationLayer
+                                renderTextLayer
+                            />
+                        </div>
                     </Document>
                 )}
             </div>
@@ -499,9 +528,10 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
     };
 
     return (
-        <div className="-m-4 md:-m-8 bg-gray-50">
-            {/* Header — bleeds to the true edges of the scroll container so sticky top-0 works without a gap */}
-            <div className="bg-white border-b border-gray-200 sticky top-0 z-20">
+    return (
+        <div className="bg-gray-50 min-h-screen">
+            {/* Header — Fixed on mobile, sticky on desktop */}
+            <div className="bg-white border-b border-gray-200 sticky top-0 md:relative md:top-auto z-[40] shadow-sm">
                 <div className="max-w-7xl mx-auto px-4 sm:px-8 py-3 sm:py-4">
                     <div className="flex items-center justify-between gap-2">
                         {/* Left: Back + filename */}
@@ -521,9 +551,6 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                                 <h2 className="text-gray-900 truncate text-sm sm:text-base max-w-[120px] sm:max-w-[280px] md:max-w-[400px]">
                                     {originalFilename || `${candidate.name}_Resume`}
                                 </h2>
-                                <Badge className={`${rankColor.bg} ${rankColor.text} hidden sm:inline-flex flex-shrink-0 text-xs`}>
-                                    {(candidate.probability_score * 100).toFixed(2)}% • {rankColor.badge}
-                                </Badge>
                             </div>
                         </div>
                         {/* Right: action buttons */}
@@ -533,7 +560,7 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                                 size="sm"
                                 onClick={handleDownload}
                                 disabled={!hasResume}
-                                className="px-2 sm:px-3"
+                                className="px-2 sm:px-3 h-9"
                             >
                                 <Download className="w-4 h-4" />
                                 <span className="hidden sm:inline ml-1">Download</span>
@@ -542,125 +569,23 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                                 variant="outline"
                                 size="sm"
                                 onClick={handleViewInsights}
-                                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 px-2 sm:px-3"
+                                className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 px-2 sm:px-3 h-9"
                             >
                                 <BarChart2 className="w-4 h-4" />
-                                <span className="hidden sm:inline ml-1">View Insights</span>
+                                <span className="hidden sm:inline ml-1 text-xs">Insights</span>
                             </Button>
                         </div>
-                    </div>
-                    {/* Mobile-only score badge row */}
-                    <div className="sm:hidden mt-2 flex items-center gap-2">
-                        <Badge className={`${rankColor.bg} ${rankColor.text} text-xs`}>
-                            {(candidate.probability_score * 100).toFixed(2)}% • {rankColor.badge}
-                        </Badge>
-                        <span className="text-xs text-gray-500">{candidate.name}</span>
                     </div>
                 </div>
             </div>
 
-            <div className="max-w-7xl mx-auto p-4 sm:p-8">
+            <div className="max-w-7xl mx-auto p-4 sm:p-8 space-y-6">
                 <div className="grid grid-cols-1 lg:grid-cols-4 gap-4 sm:gap-6">
-                    {/* Sidebar — shown below PDF on mobile, left column on desktop */}
-                    <div className="order-2 lg:order-1 lg:col-span-1 space-y-4">
-                        <Card className="p-6 border-gray-200">
-                            <h3 className="text-gray-900 mb-4">Resume Details</h3>
-                            <div className="space-y-3">
-                                <div>
-                                    <p className="text-xs text-gray-500 mb-1">Candidate Name</p>
-                                    <span className="text-sm text-gray-900">{candidate.name}</span>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 mb-1">Email</p>
-                                    <span className="text-sm text-gray-900">{candidate.email}</span>
-                                </div>
-                                {candidate.phone && (
-                                    <div>
-                                        <p className="text-xs text-gray-500 mb-1">Phone</p>
-                                        <span className="text-sm text-gray-900">{candidate.phone}</span>
-                                    </div>
-                                )}
-                                <div className="pt-2 border-t border-gray-100">
-                                    <p className="text-xs text-gray-500 mb-1">Match Score</p>
-                                    <div className="flex items-center gap-2">
-                                        <Star className="w-4 h-4 text-yellow-500 fill-yellow-500" />
-                                        <span className="text-gray-900">
-                                            {(candidate.probability_score * 100).toFixed(2)}%
-                                        </span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 mb-1">Uploaded</p>
-                                    <div className="flex items-center gap-2">
-                                        <Calendar className="w-4 h-4 text-gray-400" />
-                                        <span className="text-sm text-gray-900">
-                                            {new Date(candidate.appliedDate).toLocaleDateString('en-US', {
-                                                month: 'long',
-                                                day: 'numeric',
-                                                year: 'numeric',
-                                            })}
-                                        </span>
-                                    </div>
-                                </div>
-                                <div>
-                                    <p className="text-xs text-gray-500 mb-1">Ranking Tier</p>
-                                    <Badge className={`${rankColor.bg} ${rankColor.text}`}>
-                                        {candidate.gyr_tier}
-                                    </Badge>
-                                </div>
-                                {hasResume && (
-                                    <div>
-                                        <p className="text-xs text-gray-500 mb-1">File Type</p>
-                                        <Badge className="bg-gray-100 text-gray-700">
-                                            {isPdf ? 'PDF' : 'DOCX'}
-                                        </Badge>
-                                    </div>
-                                )}
-                            </div>
-                        </Card>
-
-                        {!isRejected && (
-                            <Card className="p-6 border-gray-200">
-                                <h3 className="text-gray-900 mb-4">Actions</h3>
-                                <div className="space-y-2">
-                                    {!isShortlisted && (
-                                        <Button
-                                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
-                                            onClick={() => onAction?.('shortlist')}
-                                        >
-                                            <ThumbsUp className="w-4 h-4 mr-2" />
-                                            Shortlist
-                                        </Button>
-                                    )}
-                                    {!isShortlisted && (
-                                        <Button
-                                            variant="outline"
-                                            className="w-full hover:bg-red-50 hover:text-red-600 hover:border-red-200"
-                                            onClick={() => onAction?.('reject')}
-                                        >
-                                            <ThumbsDown className="w-4 h-4 mr-2" />
-                                            Reject
-                                        </Button>
-                                    )}
-                                </div>
-                            </Card>
-                        )}
-
-                        {isRejected && (
-                            <Card className="p-6 border-gray-200 bg-gray-50">
-                                <h3 className="text-gray-900 mb-2">Rejected Candidate</h3>
-                                <p className="text-sm text-gray-600">
-                                    This candidate has been rejected for this position.
-                                </p>
-                            </Card>
-                        )}
-                    </div>
-
                     {/* Main Content — Resume Viewer, shown first on mobile */}
                     <div className="order-1 lg:order-2 lg:col-span-3">
                         <Card
-                            className="border-gray-200 overflow-hidden flex flex-col"
-                            style={{ height: 'clamp(60vh, calc(100vh - 200px), 90vh)' }}
+                            className="border-gray-200 overflow-hidden flex flex-col shadow-sm"
+                            style={{ height: 'clamp(500px, calc(100vh - 180px), 900px)' }}
                         >
                             {isPdf && <PdfViewer url={resumeUrl} />}
                             {isDocx && <DocxViewer url={resumeUrl} />}
@@ -680,10 +605,86 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                             )}
                         </Card>
                     </div>
+
+                    {/* Sidebar — shown below PDF on mobile */}
+                    <div className="order-2 lg:order-1 lg:col-span-1 space-y-4">
+                        <Card className="p-6 border-gray-200 shadow-sm">
+                            <div className="flex items-center justify-between mb-4">
+                                <h3 className="text-gray-900 font-semibold">Resume Details</h3>
+                                <Badge className={`${rankColor.bg} ${rankColor.text} text-[10px]`}>
+                                    {(candidate.probability_score * 100).toFixed(1)}% • {rankColor.badge}
+                                </Badge>
+                            </div>
+                            <div className="space-y-4">
+                                <div>
+                                    <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">Candidate</p>
+                                    <span className="text-sm text-gray-900 block font-medium">{candidate.name}</span>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">Email</p>
+                                    <span className="text-xs text-gray-900 block break-all">{candidate.email}</span>
+                                </div>
+                                {candidate.phone && (
+                                    <div>
+                                        <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">Phone</p>
+                                        <span className="text-sm text-gray-900 block">{candidate.phone}</span>
+                                    </div>
+                                )}
+                                <div className="pt-3 border-t border-gray-100">
+                                    <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">Ranking Tier</p>
+                                    <Badge className={`${rankColor.bg} ${rankColor.text} text-[10px]`}>
+                                        {candidate.gyr_tier} Tier
+                                    </Badge>
+                                </div>
+                                <div className="pt-3 border-t border-gray-100">
+                                    <p className="text-[10px] text-gray-400 uppercase font-bold tracking-wider mb-1">Applied Date</p>
+                                    <div className="flex items-center gap-2">
+                                        <Calendar className="w-3.5 h-3.5 text-gray-400" />
+                                        <span className="text-xs text-gray-700">
+                                            {new Date(candidate.appliedDate).toLocaleDateString()}
+                                        </span>
+                                    </div>
+                                </div>
+                            </div>
+                        </Card>
+
+                        {/* Actions section inside sidebar */}
+                        {!isRejected && (
+                            <Card className="p-6 border-gray-200 shadow-sm">
+                                <h3 className="text-gray-900 font-semibold mb-4">Decision</h3>
+                                <div className="space-y-3">
+                                    {!isShortlisted && (
+                                        <Button
+                                            className="w-full bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm h-10"
+                                            onClick={() => onAction?.('shortlist')}
+                                        >
+                                            <ThumbsUp className="w-4 h-4 mr-2" />
+                                            Shortlist
+                                        </Button>
+                                    )}
+                                    {!isShortlisted && (
+                                        <Button
+                                            variant="outline"
+                                            className="w-full hover:bg-red-50 hover:text-red-600 hover:border-red-200 h-10"
+                                            onClick={() => onAction?.('reject')}
+                                        >
+                                            <ThumbsDown className="w-4 h-4 mr-2" />
+                                            Reject
+                                        </Button>
+                                    )}
+                                    {(isShortlisted || isRejected) && (
+                                        <div className="text-center py-2 px-3 rounded-lg bg-gray-50 border border-gray-100 italic text-sm text-gray-500">
+                                            {isShortlisted ? 'Already Shortlisted' : 'Candidate Rejected'}
+                                        </div>
+                                    )}
+                                </div>
+                            </Card>
+                        )}
+                    </div>
                 </div>
             </div>
 
-            {/* Insights modal — fixed overlay */}
+            {/* Insights modal */}
             {insightsOpen && (
                 <InsightsModal
                     data={insightsData}
