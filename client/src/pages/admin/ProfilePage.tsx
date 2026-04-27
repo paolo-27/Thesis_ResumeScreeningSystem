@@ -18,15 +18,15 @@ export default function ProfilePage() {
   const { user, token, updateUser } = useAuth();
 
   // Form state
-  const [name, setName]         = useState(user?.name || '');
-  const [email, setEmail]       = useState(user?.email || '');
-  const [phone, setPhone]       = useState(user?.phone || '');
-  const [company, setCompany]   = useState(user?.company || '');
+  const [name, setName] = useState(user?.name || '');
+  const [email, setEmail] = useState(user?.email || '');
+  const [phone, setPhone] = useState(user?.phone || '');
+  const [company, setCompany] = useState(user?.company || '');
   const [location, setLocation] = useState(user?.location || '');
   const [avatarColor, setAvatarColor] = useState(user?.avatar_color || '#10b981');
 
   // Account stats
-  const [jobsPosted, setJobsPosted]     = useState<number | null>(null);
+  const [jobsPosted, setJobsPosted] = useState<number | null>(null);
   const [resumesCount, setResumesCount] = useState<number | null>(null);
 
   // Status
@@ -150,7 +150,7 @@ export default function ProfilePage() {
                     id="p-name"
                     value={name}
                     onChange={e => setName(e.target.value)}
-                    maxLength={60}
+                    maxLength={40}
                     placeholder="Your full name"
                     className="h-10 text-sm border-gray-200"
                   />
@@ -177,7 +177,7 @@ export default function ProfilePage() {
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
-                  maxLength={60}
+                  maxLength={40}
                   placeholder="your@email.com"
                   className="h-10 text-sm border-gray-200"
                 />
