@@ -150,6 +150,7 @@ export default function ProfilePage() {
                     id="p-name"
                     value={name}
                     onChange={e => setName(e.target.value)}
+                    maxLength={60}
                     placeholder="Your full name"
                     className="h-10 text-sm border-gray-200"
                   />
@@ -176,6 +177,7 @@ export default function ProfilePage() {
                   type="email"
                   value={email}
                   onChange={e => setEmail(e.target.value)}
+                  maxLength={60}
                   placeholder="your@email.com"
                   className="h-10 text-sm border-gray-200"
                 />
