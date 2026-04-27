@@ -2381,10 +2381,12 @@ def extract_domains(text):
     return found
 
 
-def domain_alignment_score(resume_text, job_description):
+def domain_alignment_score(resume_text, job_description, tfidf_sim=0.0, sbert_sim=0.0):
     jd_domains = extract_domains(job_description)
     resume_domains = extract_domains(resume_text)
     resume_families, jd_families, family_relation = role_family_relation(resume_text, job_description)
+
+    has_semantic_signal = tfidf_sim > 0 or sbert_sim > 0
 
     if not jd_domains:
         return 1 if family_relation == "same" else 0
@@ -2392,13 +2394,13 @@ def domain_alignment_score(resume_text, job_description):
     if jd_domains.intersection(resume_domains):
         return 1
 
-    skills_score = skills_match_score(resume_text, job_description)
+    skills_score = skills_match_score(resume_text, job_description, tfidf_sim, sbert_sim)
 
     if family_relation == "same":
-        return 1
+        return 1 if has_semantic_signal else 0
 
     if family_relation == "adjacent" and skills_score >= 1:
-        return 1
+        return 1 if has_semantic_signal else 0
 
     for jd_domain in jd_domains:
         valid_domains = RELATED_DOMAINS.get(jd_domain, {jd_domain}) - {jd_domain}
@@ -2463,15 +2465,15 @@ def print_debug_samples(df, limit=3):
     print("\n-------------------------------\n")
     
 
-def calculate_strict_logic(resume_text, job_description, tfidf_sim=None, sbert_sim=None):
+def calculate_strict_logic(resume_text, job_description, tfidf_sim=0.0, sbert_sim=0.0):
     """
     Deterministic recruiter-style scoring for the 4 hard-logic columns.
-    tfidf_sim and sbert_sim are kept only for compatibility with older callers.
+    tfidf_sim and sbert_sim gate family-based fallback scoring in skills and domain.
     """
     edu_score = education_match_score(resume_text, job_description)
     exp_score = experience_match_score(resume_text, job_description)
-    skills_score = skills_match_score(resume_text, job_description)
-    domain_score = domain_alignment_score(resume_text, job_description)
+    skills_score = skills_match_score(resume_text, job_description, tfidf_sim, sbert_sim)
+    domain_score = domain_alignment_score(resume_text, job_description, tfidf_sim, sbert_sim)
 
     jd_has_target_signal = bool(extract_skills(job_description) or extract_domains(job_description))
 
