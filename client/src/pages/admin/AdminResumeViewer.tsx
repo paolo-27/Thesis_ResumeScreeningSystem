@@ -582,7 +582,7 @@ export default function AdminResumeViewer({ candidateId, onBack, onAction }: Adm
                                     className="border-emerald-200 text-emerald-700 hover:bg-emerald-50 px-2 sm:px-3 h-9"
                                 >
                                     <BarChart2 className="w-4 h-4" />
-                                    <span className="hidden sm:inline ml-1 text-xs">Insights</span>
+                                    <span className="hidden sm:inline ml-1">Insights</span>
                                 </Button>
                             </div>
                         </div>
