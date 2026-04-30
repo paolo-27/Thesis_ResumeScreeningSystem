@@ -21,15 +21,21 @@ export default function RejectedCandidates({ jobId, candidates, onResumeSelect, 
   );
 
   const getScoreBadgeColor = (score: number) => {
-    if (score >= 90) return 'bg-emerald-100 text-emerald-700';
-    if (score >= 80) return 'bg-blue-100 text-blue-700';
-    if (score >= 70) return 'bg-yellow-100 text-yellow-700';
+    const pct = score * 100;
+    if (pct >= 90) return 'bg-emerald-100 text-emerald-700';
+    if (pct >= 80) return 'bg-blue-100 text-blue-700';
+    if (pct >= 70) return 'bg-yellow-100 text-yellow-700';
     return 'bg-red-100 text-red-700';
   };
 
-  const getRankBadge = (score: number) => {
-    if (score >= 80) return { label: 'Top 30%', color: 'bg-emerald-100 text-emerald-700' };
-    if (score >= 60) return { label: 'Middle 50%', color: 'bg-yellow-100 text-yellow-700' };
+  const getRankBadge = (candidate: Candidate) => {
+    if (candidate.gyr_tier === 'Green') return { label: 'Top 30%', color: 'bg-emerald-100 text-emerald-700' };
+    if (candidate.gyr_tier === 'Yellow') return { label: 'Middle 50%', color: 'bg-yellow-100 text-yellow-700' };
+    if (candidate.gyr_tier === 'Red') return { label: 'Bottom 20%', color: 'bg-red-100 text-red-700' };
+
+    const pct = (candidate.probability_score || 0) * 100;
+    if (pct >= 70) return { label: 'Top 30%', color: 'bg-emerald-100 text-emerald-700' };
+    if (pct >= 40) return { label: 'Middle 50%', color: 'bg-yellow-100 text-yellow-700' };
     return { label: 'Bottom 20%', color: 'bg-red-100 text-red-700' };
   };
 
@@ -83,7 +89,7 @@ export default function RejectedCandidates({ jobId, candidates, onResumeSelect, 
               <h3 className="text-gray-900 mb-1 font-bold">Rejected Summary</h3>
               <p className="text-sm text-gray-600">
                 Average Score: <span className="font-medium">
-                  {filteredCandidates.length ? Math.round(filteredCandidates.reduce((sum, c) => sum + (c.probability_score || 0), 0) / filteredCandidates.length) : 0}%
+                  {filteredCandidates.length ? Math.round((filteredCandidates.reduce((sum, c) => sum + (c.probability_score || 0), 0) / filteredCandidates.length) * 100) : 0}%
                 </span>
               </p>
             </div>
@@ -98,7 +104,7 @@ export default function RejectedCandidates({ jobId, candidates, onResumeSelect, 
       {/* Candidate Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {filteredCandidates.map((candidate) => {
-          const rankBadge = getRankBadge(candidate.probability_score || 0);
+          const rankBadge = getRankBadge(candidate);
           return (
             <Card
               key={candidate.id}
@@ -116,7 +122,7 @@ export default function RejectedCandidates({ jobId, candidates, onResumeSelect, 
                     </div>
                   </div>
                   <Badge className={getScoreBadgeColor(candidate.probability_score || 0)}>
-                    {Math.round(candidate.probability_score || 0)}%
+                    {Math.round((candidate.probability_score || 0) * 100)}%
                   </Badge>
                 </div>
 
