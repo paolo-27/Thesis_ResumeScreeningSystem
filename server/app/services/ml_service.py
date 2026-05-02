@@ -3,6 +3,24 @@ import re
 import joblib
 import numpy as np
 import shap
+
+# --- SHAP / XGBoost 3.0+ compatibility patch ---
+try:
+    import shap.explainers._tree
+    _original_decode = shap.explainers._tree.decode_ubjson_buffer
+    def _patched_decode(fd):
+        jmodel = _original_decode(fd)
+        try:
+            bs = jmodel.get("learner", {}).get("learner_model_param", {}).get("base_score")
+            if isinstance(bs, str) and bs.startswith("[") and bs.endswith("]"):
+                jmodel["learner"]["learner_model_param"]["base_score"] = bs[1:-1]
+        except Exception:
+            pass
+        return jmodel
+    shap.explainers._tree.decode_ubjson_buffer = _patched_decode
+except AttributeError:
+    pass
+
 from xgboost import XGBClassifier
 from sentence_transformers import SentenceTransformer
 from sklearn.metrics.pairwise import cosine_similarity
