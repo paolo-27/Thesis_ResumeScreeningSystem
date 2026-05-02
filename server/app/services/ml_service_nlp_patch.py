@@ -80,16 +80,18 @@ try:
     from spacy.matcher import PhraseMatcher
 
     _nlp = spacy.load("en_core_web_sm", disable=["parser", "ner"])
+    # Re-enable 'senter' (sentence boundary) + 'ner' for the year extractor
     _nlp_full = spacy.load("en_core_web_sm", disable=["tagger", "attribute_ruler", "lemmatizer"])
     _SPACY_OK = True
-    print("[nlp_patch] spaCy loaded successfully.")
-except Exception as e:
-    import traceback
+except Exception as _spacy_err:
+    import traceback as _tb
     _nlp = None
     _nlp_full = None
     _SPACY_OK = False
-    print(f"[nlp_patch] spaCy failed to load: {e}")
-    traceback.print_exc()
+    print(f"[nlp_patch] spaCy failed to load: {_spacy_err}")
+    _tb.print_exc()
+else:
+    print("[nlp_patch] spaCy loaded successfully.")
 
 try:
     from rapidfuzz import fuzz as _fuzz
@@ -554,9 +556,24 @@ def extract_required_years(job_description: str) -> float:
 
 
 def _original_extract_required_years(job_description: str) -> float:
-    """Verbatim extract_required_years from ml_service.py."""
+    """
+    Verbatim extract_required_years logic — implemented directly here to avoid
+    calling h.extract_required_years(), which is now patched and would recurse.
+    """
     h = _host()
-    return h.extract_required_years(job_description)   # calls original until monkey-patched
+
+    explicit_patterns = [
+        r"(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\s+(?:of\s+)?experience",
+        r"(?:at\s+least|over|more\s+than|minimum(?:\s+of)?|with)\s+(\d+(?:\.\d+)?)\s*(?:years?|yrs?)",
+        r"(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+)?(?:work\s+)?experience",
+        r"experience\s*[:\-]?\s*(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)",
+        r"(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\s+(?:in\s+)?(?:the\s+)?(?:industry|field|role|position)",
+        r"(\d+(?:\.\d+)?)\s*[-\u2013]\s*\d+\s*(?:years?|yrs?)\s+(?:of\s+)?experience",
+        r"(\d+)\+\s*(?:years?|yrs?)",
+    ]
+
+    values = h._extract_explicit_year_values(job_description, explicit_patterns, range_mode="min")
+    return float(min(values)) if values else 0.0
 
 
 # ---------------------------------------------------------------------------
