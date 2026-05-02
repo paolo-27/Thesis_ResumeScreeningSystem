@@ -2430,11 +2430,9 @@ def build_debug_snapshot(resume_text, job_description):
         "jd_role_families": sorted(extract_role_families(job_description)),
         "resume_role_families": sorted(extract_role_families(resume_text)),
     }
+import sys
 import os
-print("[ml_service] Current dir:", os.getcwd())
-print("[ml_service] Files here:", os.listdir(os.getcwd()))
-print("[ml_service] __file__ dir:", os.path.dirname(os.path.abspath(__file__)))
-print("[ml_service] Files there:", os.listdir(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 # ── NLP patch: shadows the extraction/scoring functions defined above ──
 try:
     from ml_service_nlp_patch import (
