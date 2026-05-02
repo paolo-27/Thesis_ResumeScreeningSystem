@@ -80,14 +80,16 @@ try:
     from spacy.matcher import PhraseMatcher
 
     _nlp = spacy.load("en_core_web_sm", disable=["parser", "ner"])
-    # Re-enable 'senter' (sentence boundary) + 'ner' for the year extractor
     _nlp_full = spacy.load("en_core_web_sm", disable=["tagger", "attribute_ruler", "lemmatizer"])
     _SPACY_OK = True
-except Exception:
+    print("[nlp_patch] spaCy loaded successfully.")
+except Exception as e:
+    import traceback
     _nlp = None
     _nlp_full = None
     _SPACY_OK = False
-    print("[nlp_patch] spaCy not available – falling back to pure-regex mode.")
+    print(f"[nlp_patch] spaCy failed to load: {e}")
+    traceback.print_exc()
 
 try:
     from rapidfuzz import fuzz as _fuzz
