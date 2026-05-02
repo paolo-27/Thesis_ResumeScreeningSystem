@@ -2430,7 +2430,23 @@ def build_debug_snapshot(resume_text, job_description):
         "jd_role_families": sorted(extract_role_families(job_description)),
         "resume_role_families": sorted(extract_role_families(resume_text)),
     }
-
+# ── NLP patch: shadows the extraction/scoring functions defined above ──
+try:
+    from ml_service_nlp_patch import (
+        extract_skills,
+        extract_domains,
+        extract_degree_level,
+        extract_fields,
+        extract_resume_years,
+        extract_required_years,
+        skills_match_score,
+        domain_alignment_score,
+        education_match_score,
+        education_match_details,
+    )
+    print("[ml_service] NLP patch loaded successfully.")
+except ImportError as e:
+    print(f"[ml_service] NLP patch not found, using original extractors. ({e})")
 
 def print_debug_samples(df, limit=3):
     print("\n--- DEBUG SAMPLE INSPECTION ---")
