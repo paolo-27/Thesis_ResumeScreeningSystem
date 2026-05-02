@@ -12,6 +12,8 @@ sentence-transformers==5.2.3
 shap==0.51.0
 python-jose[cryptography]==3.3.0
 bcrypt==5.0.0
+numpy==1.26.4
+
 
 # ── PostgreSQL / Supabase ──────────────────────────────────────────────────────
 # psycopg2-binary: synchronous PostgreSQL driver for SQLAlchemy (drop-in for SQLite)
