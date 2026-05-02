@@ -1,88 +1,47 @@
 """
 ml_service_nlp_patch.py
 =======================
-Drop-in NLP-enhanced replacements for the four core extraction + scoring
+Drop-in NLP-enhanced replacements for the core extraction + scoring
 functions in ml_service.py.
 
-HOW TO USE
-----------
-1.  pip install spacy rapidfuzz  &&  python -m spacy download en_core_web_sm
-2.  At the top of ml_service.py, after all existing imports, add:
-        from ml_service_nlp_patch import (
-            extract_skills,
-            extract_domains,
-            extract_degree_level,
-            extract_fields,
-            extract_resume_years,
-            extract_required_years,
-            skills_match_score,
-            domain_alignment_score,
-            education_match_score,
-            education_match_details,
-        )
-    These names will shadow the originals for every call that follows,
-    including build_feature_vector and calculate_strict_logic.
+BUGS FIXED IN THIS VERSION
+---------------------------
+Bug 1 – Skill false positives (JD getting azure, fastapi, laravel, gcp, etc.)
+  contains_term() matched substrings inside longer words.
+  "excellent" triggered "excel", etc.
+  Fix: strict word-boundary matching + minimum alias length of 4 chars.
+  Skills in _STRONG_EVIDENCE_REQUIRED now require a technical context
+  keyword in the same sentence before being accepted.
 
-WHAT CHANGED vs. THE ORIGINAL
-------------------------------
-extract_skills
-  - spaCy PhraseMatcher built from SKILL_ALIASES → handles lemma variants
-    and avoids substring false-positives on short tokens (e.g. "r", "go").
-  - RapidFuzz partial-ratio fallback catches OCR / hyphenation noise.
+Bug 2 – "Education" section header extracted as a field of study.
+  Fix: hard blocklist of section-header words that are never fields.
 
-extract_domains / domain_alignment_score
-  - PhraseMatcher on DOMAIN_KEYWORDS.
-  - domain_alignment_score now returns a *graded* 0.0–1.0 float instead of
-    binary 0/1, giving the XGBoost model a richer signal.
+Bug 3 – Resume degree "none" despite "Bachelor of Science in Marketing".
+  PDF extraction splits degree keywords across lines.
+  Fix: _join_split_lines() merges lines that end with a preposition
+  before any extraction runs.
 
-extract_degree_level
-  - spaCy token lemmatizer normalises "studying", "studied", "studies" →
-    the degree-level regex then fires correctly on lemmatised text.
-  - Adds "associate" degree tier (maps to "none" numerically for safety).
-
-extract_fields
-  - PhraseMatcher mirrors the alias table; field-context windows now use
-    spaCy sentence boundaries instead of a brittle regex split.
-
-extract_resume_years
-  - spaCy DATE NER pre-pass: named DATE spans are extracted first, then the
-    original interval logic runs on those clean spans.
-  - Overlapping interval de-duplication is done via the existing
-    _weighted_intervals_to_years() – no behaviour change for the scorer.
-
-extract_required_years
-  - Same NER pre-pass; unchanged regex cascade underneath.
-
-skills_match_score
-  - Two-level scoring:
-      Level 1 (hard match)  : set-overlap ratio ≥ threshold  → 2
-      Level 2 (soft match)  : SBERT cosine on skill-sentence  → 1 if ≥ 0.45
-    This lets a candidate who lists "scikit-learn" score against a JD that
-    asks for "sklearn" even if the alias table missed a variant.
-
-education_match_score / education_match_details
-  - Unchanged scoring logic; field extraction uses the new PhraseMatcher.
+Bug 4 – _original_extract_required_years recursion.
+  Old version called h.extract_required_years() which is now patched.
+  Fix: inline implementation that never calls back into the host module.
 """
 
 from __future__ import annotations
 
 import re
 from functools import lru_cache
-from typing import Optional
-
-import numpy as np
 
 # ---------------------------------------------------------------------------
-# Lazy NLP initialisation (spaCy + RapidFuzz optional but strongly preferred)
+# Lazy NLP initialisation
 # ---------------------------------------------------------------------------
 try:
     import spacy
     from spacy.matcher import PhraseMatcher
 
     _nlp = spacy.load("en_core_web_sm", disable=["parser", "ner"])
-    # Re-enable 'senter' (sentence boundary) + 'ner' for the year extractor
     _nlp_full = spacy.load("en_core_web_sm", disable=["tagger", "attribute_ruler", "lemmatizer"])
     _SPACY_OK = True
+    print("[nlp_patch] spaCy loaded successfully.")
 except Exception as _spacy_err:
     import traceback as _tb
     _nlp = None
@@ -90,8 +49,6 @@ except Exception as _spacy_err:
     _SPACY_OK = False
     print(f"[nlp_patch] spaCy failed to load: {_spacy_err}")
     _tb.print_exc()
-else:
-    print("[nlp_patch] spaCy loaded successfully.")
 
 try:
     from rapidfuzz import fuzz as _fuzz
@@ -103,15 +60,105 @@ except ImportError:
 
 
 # ---------------------------------------------------------------------------
-# Re-import everything we need from the host module at call time.
-# We use a lazy import helper so this patch file can also be tested standalone.
+# Lazy host module reference
+# ---------------------------------------------------------------------------
+def _host():
+    import importlib, sys
+    return sys.modules.get("ml_service") or importlib.import_module("ml_service")
+
+
+# ---------------------------------------------------------------------------
+# Constants
 # ---------------------------------------------------------------------------
 
-def _host():
-    """Return the ml_service module (imported lazily to avoid circular refs)."""
-    import importlib, sys
-    mod = sys.modules.get("ml_service") or importlib.import_module("ml_service")
-    return mod
+# Words that appear as section headers and must NEVER be treated as fields
+_FIELD_HEADER_BLOCKLIST = {
+    "education", "experience", "skills", "references", "contact",
+    "language", "languages", "summary", "objective", "profile",
+    "work", "employment", "certifications", "achievements", "awards",
+    "interests", "hobbies", "projects", "volunteer", "activities",
+    "overview", "requirements", "responsibilities", "qualifications",
+    "key", "about", "introduction", "highlights", "competencies",
+}
+
+# Skills that are commonly false-positive matched from generic office text.
+# These require at least one explicit technical context keyword nearby.
+_STRONG_EVIDENCE_REQUIRED = {
+    "excel",             # "excellent" → false hit
+    "word",              # "microsoft word" vs any sentence with "word"
+    "access",            # "access to" vs "microsoft access"
+    "integrity",         # common adjective
+    "communication",     # common noun
+    "leadership",        # common noun
+    "cash handling",     # only valid in retail/finance JDs
+    "accounting",        # needs financial context
+    "laravel",           # PHP framework — needs dev context
+    "azure",             # cloud — needs tech context
+    "gcp",               # cloud — needs tech context
+    "cybersecurity",     # needs security context
+    "fastapi",           # needs Python/API context
+    "feature engineering",  # needs ML context
+}
+
+# Technical context keywords that validate strong-evidence skills
+_TECH_CONTEXT_KEYWORDS = {
+    "microsoft", "office suite", "spreadsheet", "database", "server",
+    "cloud", "platform", "framework", "php", "python", "api", "devops",
+    "software", "application", "system", "network", "security", "finance",
+    "bookkeeping", "payroll", "invoice", "retail", "machine learning",
+    "data", "pipeline", "engineering", "backend", "frontend", "developer",
+    "programming", "web", "infrastructure", "deployment", "repository",
+}
+
+
+# ---------------------------------------------------------------------------
+# Text helpers
+# ---------------------------------------------------------------------------
+
+def _join_split_lines(text: str) -> str:
+    """
+    Join lines that were split mid-phrase by a PDF extractor.
+    e.g. "Bachelor of Science in\nMarketing" becomes one line.
+    """
+    lines = text.splitlines()
+    result = []
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            result.append("")
+            continue
+        # If the previous line ends with a preposition/conjunction, merge
+        if result and re.search(
+            r"\b(in|of|and|or|the|a|an|for|with|at|by)\s*$",
+            result[-1],
+            re.IGNORECASE,
+        ):
+            result[-1] = result[-1].rstrip() + " " + stripped
+        else:
+            result.append(stripped)
+    return "\n".join(result)
+
+
+def _lemmatise(text: str) -> str:
+    if not _SPACY_OK or not text:
+        return text.lower()
+    doc = _nlp(text[:50_000])
+    return " ".join(tok.lemma_.lower() for tok in doc)
+
+
+def _has_tech_context(text: str) -> bool:
+    """Return True if text contains at least one technical context keyword."""
+    lower = text.lower()
+    return any(kw in lower for kw in _TECH_CONTEXT_KEYWORDS)
+
+
+def _strict_word_match(text: str, term: str) -> bool:
+    """
+    True if *term* appears in *text* as a whole word/phrase,
+    not as a substring of a longer word.
+    """
+    pattern = r"(?<![a-z0-9])" + re.escape(term.lower()) + r"(?![a-z0-9])"
+    return bool(re.search(pattern, text.lower()))
 
 
 # ---------------------------------------------------------------------------
@@ -120,20 +167,19 @@ def _host():
 
 @lru_cache(maxsize=1)
 def _build_skill_matcher():
-    """Build a spaCy PhraseMatcher for SKILL_ALIASES (LOWER attribute)."""
     if not _SPACY_OK:
         return None
     h = _host()
     matcher = PhraseMatcher(_nlp.vocab, attr="LOWER")
     for canonical, aliases in h.SKILL_ALIASES.items():
-        patterns = [_nlp.make_doc(a) for a in aliases]
-        matcher.add(canonical, patterns)
+        patterns = [_nlp.make_doc(a) for a in aliases if len(a) >= 4]
+        if patterns:
+            matcher.add(canonical, patterns)
     return matcher
 
 
 @lru_cache(maxsize=1)
 def _build_domain_matcher():
-    """Build a spaCy PhraseMatcher for DOMAIN_KEYWORDS (LOWER attribute)."""
     if not _SPACY_OK:
         return None
     h = _host()
@@ -146,120 +192,106 @@ def _build_domain_matcher():
 
 @lru_cache(maxsize=1)
 def _build_field_matcher():
-    """Build a spaCy PhraseMatcher for FIELD_ALIASES (LOWER attribute)."""
     if not _SPACY_OK:
         return None
     h = _host()
     matcher = PhraseMatcher(_nlp.vocab, attr="LOWER")
     for canonical, aliases in h.FIELD_ALIASES.items():
-        patterns = [_nlp.make_doc(a) for a in aliases]
-        matcher.add(canonical, patterns)
+        if canonical.lower() in _FIELD_HEADER_BLOCKLIST:
+            continue
+        patterns = [
+            _nlp.make_doc(a) for a in aliases
+            if a.lower() not in _FIELD_HEADER_BLOCKLIST
+        ]
+        if patterns:
+            matcher.add(canonical, patterns)
     return matcher
 
 
 # ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
-
-def _lemmatise(text: str) -> str:
-    """Return a lower-cased, lemmatised version of *text* using spaCy."""
-    if not _SPACY_OK or not text:
-        return text.lower()
-    doc = _nlp(text[:50_000])   # guard against absurdly long inputs
-    return " ".join(tok.lemma_.lower() for tok in doc)
-
-
-def _nlp_doc(text: str):
-    """Return a spaCy Doc (with NER) for *text*, or None if spaCy unavailable."""
-    if not _SPACY_OK or not text:
-        return None
-    return _nlp_full(text[:50_000])
-
-
-# ---------------------------------------------------------------------------
-# 1.  extract_skills  (NLP-enhanced)
+# 1. extract_skills  (fixed)
 # ---------------------------------------------------------------------------
 
 def extract_skills(text: str) -> set:
     """
-    Extract canonical skill names from *text*.
+    Extract canonical skill names from *text* with false-positive guards.
 
-    Strategy (in order):
-    1. spaCy PhraseMatcher on LOWER tokens  – catches aliases robustly.
-    2. Original alias-table substring scan  – safety net for the matcher.
-    3. RapidFuzz partial-ratio on unmatched JD/resume tokens – OCR noise.
+    Guards applied:
+    - Strict word-boundary matching (no substring hits inside longer words).
+    - Aliases shorter than 4 chars are skipped.
+    - Skills in _STRONG_EVIDENCE_REQUIRED require a technical context keyword
+      in the same sentence before being accepted.
     """
     if not text:
         return set()
 
     h = _host()
+    text = _join_split_lines(text)
+    normalised = h.normalize_text(text)
     found: set[str] = set()
 
-    # ── Pass 1: PhraseMatcher ────────────────────────────────────────────────
-    matcher = _build_skill_matcher()
-    if matcher is not None:
-        doc = _nlp(text[:50_000])
-        for match_id, _start, _end in matcher(doc):
-            found.add(_nlp.vocab.strings[match_id])
-    else:
-        # ── Fallback: original logic ─────────────────────────────────────────
-        return _original_extract_skills(text)
+    # Split into sentences for per-skill context checking
+    sentences = re.split(r"[.!?\n]", normalised)
 
-    # ── Pass 2: original regex scan for anything the matcher missed ──────────
-    # (handles multi-word aliases that spaCy tokenises unexpectedly)
-    found |= _original_extract_skills(text)
+    for canonical, aliases in h.SKILL_ALIASES.items():
+        matched = False
+        for alias in aliases:
+            if len(alias) < 4:
+                continue
 
-    # ── Pass 3: RapidFuzz fuzzy scan for unrecognised tokens ─────────────────
-    # Only run on short texts (resumes/JDs are rarely > 10 k chars here)
+            if not _strict_word_match(normalised, alias):
+                continue
+
+            # Strong-evidence skills need tech context in the same sentence
+            if canonical in _STRONG_EVIDENCE_REQUIRED:
+                containing = [s for s in sentences if _strict_word_match(s, alias)]
+                if not containing or not any(_has_tech_context(s) for s in containing):
+                    continue
+
+            matched = True
+            break
+
+        if matched:
+            found.add(canonical)
+
+    # RapidFuzz pass for OCR/typo variants
     if _FUZZ_OK and len(text) < 15_000:
-        normalised = h.normalize_text(text)
-        # Build a flat list of (alias, canonical) for the scorer
         alias_table = [
             (alias, canonical)
             for canonical, aliases in h.SKILL_ALIASES.items()
             for alias in aliases
-            if len(alias) >= 4          # skip very short aliases ("r", "go")
+            if len(alias) >= 5 and canonical not in found
         ]
-        for token in re.split(r"[\s,;|()/]+", normalised):
+        for token in re.split(r"[\s,;|()/\-]+", normalised):
             token = token.strip()
-            if not token or len(token) < 4:
+            if not token or len(token) < 5:
                 continue
-            if any(token in h.normalize_text(a) for _, a in [(None, c) for c in found]):
-                continue  # already matched
             for alias, canonical in alias_table:
                 if canonical in found:
                     continue
-                score = _fuzz.partial_ratio(token, alias)
-                if score >= 88:
+                if _fuzz.ratio(token, alias) >= 90:
+                    if canonical in _STRONG_EVIDENCE_REQUIRED:
+                        containing = [s for s in sentences if token in s]
+                        if not containing or not any(
+                            _has_tech_context(s) for s in containing
+                        ):
+                            continue
                     found.add(canonical)
                     break
 
     return found
 
 
-def _original_extract_skills(text: str) -> set:
-    """Original pure-regex skill extraction from ml_service.py (unchanged)."""
-    h = _host()
-    text = h.normalize_text(text)
-    found = set()
-    for canonical, aliases in h.SKILL_ALIASES.items():
-        if any(h.contains_term(text, alias) for alias in aliases):
-            found.add(canonical)
-    return found
-
-
 # ---------------------------------------------------------------------------
-# 2.  extract_domains  (NLP-enhanced)
+# 2. extract_domains
 # ---------------------------------------------------------------------------
 
 def extract_domains(text: str) -> set:
-    """
-    Extract domain labels from *text* using PhraseMatcher + original heuristics.
-    """
     if not text:
         return set()
 
     h = _host()
+    text = _join_split_lines(text)
     found: set[str] = set()
 
     matcher = _build_domain_matcher()
@@ -267,67 +299,57 @@ def extract_domains(text: str) -> set:
         doc = _nlp(text[:50_000])
         for match_id, _start, _end in matcher(doc):
             found.add(_nlp.vocab.strings[match_id])
-    else:
-        found = _original_extract_domains(text)
 
-    # ── Merge with original for safety ───────────────────────────────────────
-    found |= _original_extract_domains(text)
-
-    # ── Post-processing heuristics (unchanged from original) ─────────────────
+    # Original regex scan as safety net
     normalised = h.normalize_text(text)
+    for domain, keywords in h.DOMAIN_KEYWORDS.items():
+        if any(h.contains_term(normalised, kw) for kw in keywords):
+            found.add(domain)
 
+    # Post-processing heuristics
     if "data_analytics" in found:
-        strong_match = any(h.contains_term(normalised, t) for t in h._DATA_ANALYTICS_STRONG_TERMS)
-        weak_hits = sum(1 for t in h._DATA_ANALYTICS_WEAK_TERMS if h.contains_term(normalised, t))
-        marketing_ctx = any(h.contains_term(normalised, t) for t in h._MARKETING_CONTEXT_TERMS)
+        strong_match = any(
+            h.contains_term(normalised, t) for t in h._DATA_ANALYTICS_STRONG_TERMS
+        )
+        weak_hits = sum(
+            1 for t in h._DATA_ANALYTICS_WEAK_TERMS
+            if h.contains_term(normalised, t)
+        )
+        marketing_ctx = any(
+            h.contains_term(normalised, t) for t in h._MARKETING_CONTEXT_TERMS
+        )
         if not strong_match and (marketing_ctx or weak_hits < 2):
             found.discard("data_analytics")
 
     if "hr_recruitment" in found:
-        strong_hr = any(h.contains_term(normalised, t) for t in h._HR_RECRUITMENT_STRONG_TERMS)
-        weak_hr_hits = sum(1 for t in h._HR_RECRUITMENT_WEAK_TERMS if h.contains_term(normalised, t))
+        strong_hr = any(
+            h.contains_term(normalised, t) for t in h._HR_RECRUITMENT_STRONG_TERMS
+        )
+        weak_hr_hits = sum(
+            1 for t in h._HR_RECRUITMENT_WEAK_TERMS
+            if h.contains_term(normalised, t)
+        )
         if not strong_hr and weak_hr_hits < 2:
             found.discard("hr_recruitment")
 
     return found
 
 
-def _original_extract_domains(text: str) -> set:
-    """Original pure-regex domain extraction from ml_service.py (unchanged)."""
-    h = _host()
-    text = h.normalize_text(text)
-    found = set()
-    for domain, keywords in h.DOMAIN_KEYWORDS.items():
-        if any(h.contains_term(text, kw) for kw in keywords):
-            found.add(domain)
-    return found
-
-
 # ---------------------------------------------------------------------------
-# 3.  extract_degree_level  (NLP-enhanced)
+# 3. extract_degree_level  (fixed: multiline PDF handling)
 # ---------------------------------------------------------------------------
 
 def extract_degree_level(text: str) -> str:
-    """
-    Extract the highest degree level mentioned in *text*.
-
-    Enhancement: run spaCy lemmatiser so "studying computer science" or
-    "studied engineering" still fires the bachelor-level regex.
-    Falls back to original regex logic on raw text as safety net.
-    """
     if not text:
         return "none"
 
-    h = _host()
-
-    # Original logic on raw text (already very robust)
+    # Fix multiline splits before scanning
+    text = _join_split_lines(text)
     raw_level = _original_extract_degree_level(text)
 
-    # NLP pass: lemmatise then re-run original logic
     if _SPACY_OK:
         lemmatised = _lemmatise(text)
         nlp_level = _original_extract_degree_level(lemmatised)
-        # Take whichever detected a higher level
         level_order = ["none", "bachelor", "master", "phd"]
         if level_order.index(nlp_level) > level_order.index(raw_level):
             return nlp_level
@@ -336,29 +358,27 @@ def extract_degree_level(text: str) -> str:
 
 
 def _original_extract_degree_level(text: str) -> str:
-    """Original extract_degree_level from ml_service.py (verbatim logic)."""
     h = _host()
     text = h.normalize_text(text)
     text = h._sanitize_for_degree(text)
 
-    if re.search(r"(?<!\w)(phd|ph d|doctorate|doctoral)(?!\w)", text):
+    if re.search(r"(?<![a-z])(phd|ph d|doctorate|doctoral)(?![a-z])", text):
         return "phd"
 
     if re.search(
-        r"(?<!\w)(master|masters|masters degree|masters in|masters of|m s|ma|m a|msc|m sc|mba)(?!\w)",
-        text,
+        r"(?<![a-z])(master|masters|masters degree|masters in|masters of|"
+        r"m s|ma|m a|msc|m sc|mba)(?![a-z])", text,
     ) or re.search(
-        r"(?<!\w)ms(?!\s*(word|excel|office|sql|powerpoint|project|access|windows|dynamics|teams|outlook|publisher|\d))(?!\w)",
-        text,
+        r"(?<![a-z])ms(?!\s*(word|excel|office|sql|powerpoint|project|"
+        r"access|windows|dynamics|teams|outlook|publisher|\d))(?![a-z])", text,
     ):
         return "master"
 
     if re.search(
-        r"(?<!\w)(bachelor|bachelors|bachelors degree|bachelors in|bachelor of|bs|b s|bsc|b sc|undergraduate)(?!\w)",
-        text,
+        r"(?<![a-z])(bachelor|bachelors|bachelors degree|bachelors in|"
+        r"bachelor of|bs|b s|bsc|b sc|undergraduate)(?![a-z])", text,
     ) or re.search(
-        r"(?<!\w)ba(?!\s*(analyst|analysis|analytics))(?!\w)",
-        text,
+        r"(?<![a-z])ba(?!\s*(analyst|analysis|analytics))(?![a-z])", text,
     ):
         return "bachelor"
 
@@ -369,118 +389,93 @@ def _original_extract_degree_level(text: str) -> str:
 
 
 # ---------------------------------------------------------------------------
-# 4.  extract_fields  (NLP-enhanced)
+# 4. extract_fields  (fixed: section header blocklist)
 # ---------------------------------------------------------------------------
 
 def extract_fields(text: str) -> set:
-    """
-    Extract canonical field-of-study names from *text*.
-
-    Enhancement: spaCy PhraseMatcher + spaCy sentence boundaries for the
-    degree-phrase context window (more accurate than the regex split).
-    """
     if not text:
         return set()
 
     h = _host()
+    text = _join_split_lines(text)
     found: set[str] = set()
 
-    # ── Pass 1: PhraseMatcher over whole text ─────────────────────────────────
+    # PhraseMatcher pass (blocklist applied at matcher build time)
     matcher = _build_field_matcher()
     if matcher is not None:
         normalised_text = h.normalize_field_text(text)
         doc = _nlp(normalised_text[:50_000])
         for match_id, _start, _end in matcher(doc):
-            found.add(_nlp.vocab.strings[match_id])
-
-    # ── Pass 2: Original alias scan (safety net) ──────────────────────────────
-    found |= _original_extract_fields(text)
-
-    # ── Pass 3: Degree-phrase context windows (NLP sentence boundaries) ───────
-    if _SPACY_OK:
-        degree_re = re.compile(
-            r"(?:bachelor(?:s|\'s)?(?:\s+of(?:\s+science)?(?:\s+in)?)?|"
-            r"master(?:s|\'s)?(?:\s+of(?:\s+science)?(?:\s+in)?)?|"
-            r"bs|bsc|ba|ms|msc|ma|mba|phd|ph\s*d|doctorate(?:\s+in)?|"
-            r"bachelor|master)\s*(?:in|of|:)?\s*",
-            re.IGNORECASE,
-        )
-        # Use spaCy senter for cleaner windows
-        doc_full = _nlp_full(text[:50_000])
-        for sent in doc_full.sents:
-            sent_text = sent.text
-            for m in degree_re.finditer(sent_text):
-                tail = sent_text[m.end(): m.end() + 120]
-                # Stop at hard punctuation
-                tail = re.split(r"[\n;,|]", tail)[0].strip()
-                normalised_tail = h.normalize_field_text(tail)
-                for canonical, aliases in h.FIELD_ALIASES.items():
-                    if canonical not in found and any(
-                        h.contains_term(normalised_tail, alias) for alias in aliases
-                    ):
-                        found.add(canonical)
-
-    return found
-
-
-def _original_extract_fields(text: str) -> set:
-    """Original extract_fields from ml_service.py (verbatim logic)."""
-    h = _host()
-    normalised = h.normalize_field_text(text)
-    found = set()
-    for canonical, aliases in h.FIELD_ALIASES.items():
-        if any(h.contains_term(normalised, alias) for alias in aliases):
-            found.add(canonical)
-    for window in h._extract_field_context_windows(text):
-        normalised_window = h.normalize_field_text(window)
-        for canonical, aliases in h.FIELD_ALIASES.items():
-            if canonical not in found and any(
-                h.contains_term(normalised_window, alias) for alias in aliases
-            ):
+            canonical = _nlp.vocab.strings[match_id]
+            if canonical.lower() not in _FIELD_HEADER_BLOCKLIST:
                 found.add(canonical)
-    return found
+
+    # Original alias scan with blocklist guard
+    normalised = h.normalize_field_text(text)
+    for canonical, aliases in h.FIELD_ALIASES.items():
+        if canonical.lower() in _FIELD_HEADER_BLOCKLIST:
+            continue
+        if any(
+            h.contains_term(normalised, alias)
+            for alias in aliases
+            if alias.lower() not in _FIELD_HEADER_BLOCKLIST
+        ):
+            found.add(canonical)
+
+    # Degree-phrase context windows — only extract field AFTER a degree keyword
+    degree_re = re.compile(
+        r"(?:bachelor(?:s|\'s)?(?:\s+of(?:\s+science)?(?:\s+in)?)?|"
+        r"master(?:s|\'s)?(?:\s+of(?:\s+science)?(?:\s+in)?)?|"
+        r"bs|bsc|ba|ms|msc|ma|mba|phd|ph\s*d|doctorate(?:\s+in)?|"
+        r"bachelor|master)\s*(?:in|of|:)?\s*",
+        re.IGNORECASE,
+    )
+    for segment in re.split(r"[\n\r]{1,2}", text):
+        for m in degree_re.finditer(segment):
+            tail = segment[m.end(): m.end() + 120]
+            tail = re.split(r"[,|;]", tail)[0].strip()
+            if not tail or tail.lower() in _FIELD_HEADER_BLOCKLIST:
+                continue
+            normalised_tail = h.normalize_field_text(tail)
+            for canonical, aliases in h.FIELD_ALIASES.items():
+                if canonical.lower() in _FIELD_HEADER_BLOCKLIST:
+                    continue
+                if canonical not in found and any(
+                    h.contains_term(normalised_tail, alias)
+                    for alias in aliases
+                    if alias.lower() not in _FIELD_HEADER_BLOCKLIST
+                ):
+                    found.add(canonical)
+
+    # Final guard: strip anything that's purely a section header word
+    return {f for f in found if f.lower() not in _FIELD_HEADER_BLOCKLIST}
 
 
 # ---------------------------------------------------------------------------
-# 5.  extract_resume_years  (NLP-enhanced via spaCy DATE NER)
+# 5. extract_resume_years
 # ---------------------------------------------------------------------------
 
 def extract_resume_years(resume_text: str) -> float:
-    """
-    Extract the candidate's total years of experience.
-
-    Enhancement: spaCy DATE NER pre-pass surfaces date spans that the
-    regex segmenter might otherwise miss due to unusual formatting.
-    The original _weighted_intervals logic runs unchanged on the enriched
-    segment list.
-    """
     if not resume_text:
         return 0.0
 
-    h = _host()
-
-    # Original approach (robust as-is; NER is additive only)
+    resume_text = _join_split_lines(resume_text)
     base_years = _original_extract_resume_years(resume_text)
 
     if not _SPACY_OK or base_years > 0:
-        # If original already found something, trust it
         return base_years
 
-    # ── NER fallback for date-entity extraction ───────────────────────────────
-    # Collect DATE entities, build synthetic "date – date" segments and feed
-    # back into the original interval extractor.
+    # NER fallback
     doc = _nlp_full(resume_text[:50_000])
     date_strings = [ent.text for ent in doc.ents if ent.label_ == "DATE"]
     if not date_strings:
         return base_years
 
     synthetic = " ".join(date_strings)
-    ner_years = _original_extract_resume_years(synthetic)
-    return max(base_years, ner_years)
+    return max(base_years, _original_extract_resume_years(synthetic))
 
 
 def _original_extract_resume_years(resume_text: str) -> float:
-    """Original extract_resume_years from ml_service.py (unchanged)."""
     h = _host()
 
     explicit_patterns = [
@@ -489,7 +484,8 @@ def _original_extract_resume_years(resume_text: str) -> float:
         + h._NUM_PATTERN
         + r"\s*(?:years?|yrs?)\s*(?:of\s+experience)?",
         r"experience\s*[:\-]?\s*" + h._NUM_PATTERN + r"\s*(?:years?|yrs?)",
-        r"(?:work|working|professional|related)\s+experience\s*[:\-]?\s*" + h._NUM_PATTERN + r"\s*(?:years?|yrs?)",
+        r"(?:work|working|professional|related)\s+experience\s*[:\-]?\s*"
+        + h._NUM_PATTERN + r"\s*(?:years?|yrs?)",
         rf"experience[^.\n]{{0,40}}?{h._NUM_PATTERN}\s*(?:years?|yrs?)",
         h._NUM_PATTERN + r"\s*(?:years?|yrs?)\b[^.\n]{0,40}?experience",
         r"worked\s+for\s+" + h._NUM_PATTERN + r"\s*(?:years?|yrs?)",
@@ -507,7 +503,9 @@ def _original_extract_resume_years(resume_text: str) -> float:
         if weight <= 0:
             continue
 
-        seg_vals = h._extract_explicit_year_values(segment, explicit_patterns, range_mode="max")
+        seg_vals = h._extract_explicit_year_values(
+            segment, explicit_patterns, range_mode="max"
+        )
         seg_vals.extend(h._extract_explicit_duration_years(segment))
         explicit_values.extend(v * weight for v in seg_vals)
 
@@ -524,23 +522,15 @@ def _original_extract_resume_years(resume_text: str) -> float:
 
 
 # ---------------------------------------------------------------------------
-# 6.  extract_required_years  (NLP-enhanced)
+# 6. extract_required_years  (recursion fixed)
 # ---------------------------------------------------------------------------
 
 def extract_required_years(job_description: str) -> float:
-    """
-    Extract the minimum years of experience required by *job_description*.
-
-    Enhancement: identical NER pre-pass as extract_resume_years; the full
-    regex cascade from the original runs underneath unchanged.
-    """
     if not job_description:
-        return 0
+        return 0.0
 
-    h = _host()
-    base = h.extract_required_years.__wrapped__(job_description) if hasattr(
-        h.extract_required_years, "__wrapped__"
-    ) else _original_extract_required_years(job_description)
+    job_description = _join_split_lines(job_description)
+    base = _original_extract_required_years(job_description)
 
     if base > 0 or not _SPACY_OK:
         return base
@@ -557,27 +547,33 @@ def extract_required_years(job_description: str) -> float:
 
 def _original_extract_required_years(job_description: str) -> float:
     """
-    Verbatim extract_required_years logic — implemented directly here to avoid
-    calling h.extract_required_years(), which is now patched and would recurse.
+    Inline implementation — does NOT call h.extract_required_years()
+    to avoid infinite recursion since that name is now patched.
     """
     h = _host()
 
     explicit_patterns = [
         r"(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\s+(?:of\s+)?experience",
-        r"(?:at\s+least|over|more\s+than|minimum(?:\s+of)?|with)\s+(\d+(?:\.\d+)?)\s*(?:years?|yrs?)",
-        r"(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+)?(?:work\s+)?experience",
+        r"(?:at\s+least|over|more\s+than|minimum(?:\s+of)?|with)\s+"
+        r"(\d+(?:\.\d+)?)\s*(?:years?|yrs?)",
+        r"(\d+(?:\.\d+)?)\s*(?:years?|yrs?)\s+(?:of\s+)?(?:relevant\s+)?"
+        r"(?:work\s+)?experience",
         r"experience\s*[:\-]?\s*(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)",
-        r"(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\s+(?:in\s+)?(?:the\s+)?(?:industry|field|role|position)",
-        r"(\d+(?:\.\d+)?)\s*[-\u2013]\s*\d+\s*(?:years?|yrs?)\s+(?:of\s+)?experience",
+        r"(\d+(?:\.\d+)?)\+?\s*(?:years?|yrs?)\s+(?:in\s+)?(?:the\s+)?"
+        r"(?:industry|field|role|position)",
+        r"(\d+(?:\.\d+)?)\s*[-\u2013]\s*\d+\s*(?:years?|yrs?)\s+"
+        r"(?:of\s+)?experience",
         r"(\d+)\+\s*(?:years?|yrs?)",
     ]
 
-    values = h._extract_explicit_year_values(job_description, explicit_patterns, range_mode="min")
+    values = h._extract_explicit_year_values(
+        job_description, explicit_patterns, range_mode="min"
+    )
     return float(min(values)) if values else 0.0
 
 
 # ---------------------------------------------------------------------------
-# 7.  skills_match_score  (Two-level: hard overlap + SBERT soft match)
+# 7. skills_match_score
 # ---------------------------------------------------------------------------
 
 def skills_match_score(
@@ -586,26 +582,11 @@ def skills_match_score(
     tfidf_sim: float = 0.0,
     sbert_sim: float = 0.0,
 ) -> int:
-    """
-    Score skill alignment between resume and JD.
-
-    Returns 0, 1, or 2 (matching original scale).
-
-    Levels
-    ------
-    2  : hard-overlap ratio ≥ 0.60  OR  ≥ 5 shared skills
-    1  : hard-overlap ratio ≥ 0.25  OR  ≥ 2 shared skills
-         OR soft SBERT similarity ≥ 0.45 on skill sentences
-         OR original fallback logic (role-family / domain bridge)
-    0  : no match
-    """
     h = _host()
     jd_skills = extract_skills(job_description)
     resume_skills = extract_skills(resume_text)
-
     has_semantic_signal = tfidf_sim > 0 or sbert_sim > 0
 
-    # Guard: JD has no recognisable content
     if not jd_skills:
         jd_domains = extract_domains(job_description)
         jd_families = h.extract_role_families(job_description)
@@ -616,18 +597,16 @@ def skills_match_score(
     overlap = len(jd_skills & resume_skills)
     ratio = overlap / max(len(jd_skills), 1)
 
-    # Hard match ──────────────────────────────────────────────────────────────
     if ratio >= 0.60 or overlap >= 5:
         return 2
     if ratio >= 0.25 or overlap >= 2:
         return 1
 
-    # Soft SBERT skill-sentence match ─────────────────────────────────────────
     sbert_skill_score = _sbert_skill_similarity(jd_skills, resume_skills)
     if sbert_skill_score >= 0.45:
         return 1
 
-    # Original role-family / domain fallback (unchanged) ──────────────────────
+    # Role-family / domain fallback
     shared_skills = jd_skills & resume_skills
     jd_domains = extract_domains(job_description)
     resume_domains = extract_domains(resume_text)
@@ -646,7 +625,9 @@ def skills_match_score(
     }
     resume_technical_foundation = bool(resume_skills & technical_foundation_skills)
     jd_advanced_technical = bool(jd_skills & advanced_technical_jd_skills)
-    resume_families, jd_families, family_relation = h.role_family_relation(resume_text, job_description)
+    resume_families, jd_families, family_relation = h.role_family_relation(
+        resume_text, job_description
+    )
     family_skill_bridge = any(
         bool(resume_skills & h.ROLE_FAMILY_SKILL_HINTS.get(fam, set()))
         for fam in jd_families
@@ -654,7 +635,8 @@ def skills_match_score(
 
     if overlap >= 1 and technical_bridge and related_technical_context:
         return 1
-    if overlap == 0 and related_technical_context and resume_technical_foundation and jd_advanced_technical:
+    if (overlap == 0 and related_technical_context
+            and resume_technical_foundation and jd_advanced_technical):
         return 1 if has_semantic_signal else 0
     if family_relation == "same" and (overlap >= 1 or family_skill_bridge):
         return 1 if has_semantic_signal else 0
@@ -665,12 +647,6 @@ def skills_match_score(
 
 
 def _sbert_skill_similarity(jd_skills: set, resume_skills: set) -> float:
-    """
-    Compute cosine similarity between the SBERT embeddings of two skill
-    sentences (e.g. "python sql machine learning" vs "python pandas numpy").
-
-    Returns a float in [0, 1].  Returns 0.0 if SBERT is unavailable.
-    """
     if not jd_skills or not resume_skills:
         return 0.0
     try:
@@ -688,7 +664,7 @@ def _sbert_skill_similarity(jd_skills: set, resume_skills: set) -> float:
 
 
 # ---------------------------------------------------------------------------
-# 8.  domain_alignment_score  (Graded 0.0–1.0 float)
+# 8. domain_alignment_score  (graded float)
 # ---------------------------------------------------------------------------
 
 def domain_alignment_score(
@@ -697,44 +673,25 @@ def domain_alignment_score(
     tfidf_sim: float = 0.0,
     sbert_sim: float = 0.0,
 ) -> float:
-    """
-    Score domain alignment between resume and JD.
-
-    Returns a *float* in [0.0, 1.0] instead of binary 0/1.
-
-    Grading
-    -------
-    1.0  : direct domain overlap
-    0.75 : same role family  (with semantic signal)
-    0.50 : adjacent role family + skill bridge  (with semantic signal)
-    0.25 : related domain + skill score ≥ 1  (with semantic signal)
-    0.0  : no alignment
-    """
     h = _host()
     jd_domains = extract_domains(job_description)
     resume_domains = extract_domains(resume_text)
-    resume_families, jd_families, family_relation = h.role_family_relation(resume_text, job_description)
-
+    resume_families, jd_families, family_relation = h.role_family_relation(
+        resume_text, job_description
+    )
     has_semantic_signal = tfidf_sim > 0 or sbert_sim > 0
 
     if not jd_domains:
         return 0.75 if family_relation == "same" else 0.0
-
-    # Direct domain overlap ───────────────────────────────────────────────────
     if jd_domains & resume_domains:
         return 1.0
 
     s_score = skills_match_score(resume_text, job_description, tfidf_sim, sbert_sim)
 
-    # Same role family ────────────────────────────────────────────────────────
     if family_relation == "same":
         return 0.75 if has_semantic_signal else 0.0
-
-    # Adjacent role family + skill bridge ─────────────────────────────────────
     if family_relation == "adjacent" and s_score >= 1:
         return 0.50 if has_semantic_signal else 0.0
-
-    # Related domain + skill present ──────────────────────────────────────────
     for jd_domain in jd_domains:
         valid_domains = h.RELATED_DOMAINS.get(jd_domain, {jd_domain}) - {jd_domain}
         if resume_domains & valid_domains and s_score >= 1:
@@ -744,15 +701,10 @@ def domain_alignment_score(
 
 
 # ---------------------------------------------------------------------------
-# 9.  education_match_details + education_match_score
-#     (Logic unchanged; plugs in the NLP-enhanced extract_fields above)
+# 9. education_match_details + education_match_score
 # ---------------------------------------------------------------------------
 
 def education_match_details(resume_text: str, job_description: str) -> dict:
-    """
-    Identical logic to the original education_match_details but using the
-    NLP-enhanced extract_fields / extract_degree_level defined in this module.
-    """
     h = _host()
 
     jd_context = h.extract_education_context(job_description, source="job")
@@ -763,14 +715,16 @@ def education_match_details(resume_text: str, job_description: str) -> dict:
     jd_for_fields = jd_context or job_description
     resume_for_fields = resume_context or resume_text
 
-    # Use NLP-enhanced versions
     required_level = extract_degree_level(jd_for_level)
     candidate_level = extract_degree_level(resume_for_level)
     jd_fields = extract_fields(jd_for_fields)
     resume_fields = extract_fields(resume_for_fields)
 
     normalised_jd_context = h.normalize_field_text(jd_context or job_description)
-    related_ok = any(phrase in normalised_jd_context for phrase in h._RELATED_FIELD_ALLOWANCE_PHRASES)
+    related_ok = any(
+        phrase in normalised_jd_context
+        for phrase in h._RELATED_FIELD_ALLOWANCE_PHRASES
+    )
 
     req_level_num = h.DEGREE_LEVELS[required_level]
     cand_level_num = h.DEGREE_LEVELS[candidate_level]
@@ -792,10 +746,8 @@ def education_match_details(resume_text: str, job_description: str) -> dict:
 
     if req_level_num == 0:
         return base_result
-
     if cand_level_num == 0 or cand_level_num < req_level_num:
         return base_result
-
     if not jd_fields:
         base_result["score"] = 1
         return base_result
@@ -813,40 +765,7 @@ def education_match_details(resume_text: str, job_description: str) -> dict:
     return base_result
 
 
-def education_match_score(resume_text: str, job_description: str, debug: bool = False) -> int:
+def education_match_score(
+    resume_text: str, job_description: str, debug: bool = False
+) -> int:
     return education_match_details(resume_text, job_description)["score"]
-
-
-# ---------------------------------------------------------------------------
-# Self-test
-# ---------------------------------------------------------------------------
-if __name__ == "__main__":
-    sample_resume = """
-    John Doe
-    BS Computer Science, University of the Philippines, 2019
-    Work Experience:
-    Software Engineer – Acme Corp (Jan 2020 – Present)
-    - Developed REST APIs using Python and FastAPI
-    - Used PostgreSQL and Redis for data storage
-    - Deployed microservices on Docker / Kubernetes (AWS EKS)
-    - Practiced CI/CD with GitHub Actions
-    """
-
-    sample_jd = """
-    We are looking for a Backend Engineer with at least 3 years of experience.
-    Requirements:
-    - Proficient in Python, FastAPI or Django
-    - Strong SQL skills (PostgreSQL preferred)
-    - Experience with Docker, Kubernetes, and CI/CD pipelines
-    - Bachelor's degree in Computer Science, Software Engineering, or related field
-    """
-
-    print("Skills (resume):", sorted(extract_skills(sample_resume)))
-    print("Skills (JD)    :", sorted(extract_skills(sample_jd)))
-    print("Domains (resume):", sorted(extract_domains(sample_resume)))
-    print("Domains (JD)    :", sorted(extract_domains(sample_jd)))
-    print("Degree (resume) :", extract_degree_level(sample_resume))
-    print("Degree (JD)     :", extract_degree_level(sample_jd))
-    print("Fields (resume) :", sorted(extract_fields(sample_resume)))
-    print("Fields (JD)     :", sorted(extract_fields(sample_jd)))
-    print("Education details:", education_match_details(sample_resume, sample_jd))
