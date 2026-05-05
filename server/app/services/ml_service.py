@@ -2507,7 +2507,7 @@ def calculate_strict_logic(resume_text, job_description, tfidf_sim=0.0, sbert_si
     Deterministic recruiter-style scoring for the 4 hard-logic columns.
     tfidf_sim and sbert_sim gate family-based fallback scoring in skills and domain.
     """
-    edu_score = education_match_score(resume_text, job_description)
+    edu_score = education_match_score(resume_text, job_description, tfidf_sim, sbert_sim)
     exp_score = experience_match_score(resume_text, job_description)
     skills_score = skills_match_score(resume_text, job_description, tfidf_sim, sbert_sim)
     domain_score = domain_alignment_score(resume_text, job_description, tfidf_sim, sbert_sim)
