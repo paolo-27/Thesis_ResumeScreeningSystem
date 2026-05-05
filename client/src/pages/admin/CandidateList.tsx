@@ -19,12 +19,12 @@ export default function CandidateList({ jobId, rank, candidates, onResumeSelect,
 
   const getRankData = () => {
     if (rank === 'green') {
-      return { label: 'Top Tier (Top 30%)', color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-700' };
+      return { label: 'Top Tier', color: 'emerald', bg: 'bg-emerald-50', text: 'text-emerald-700' };
     }
     if (rank === 'yellow') {
-      return { label: 'Good Fit (Middle 50%)', color: 'yellow', bg: 'bg-yellow-50', text: 'text-yellow-700' };
+      return { label: 'Good Fit', color: 'yellow', bg: 'bg-yellow-50', text: 'text-yellow-700' };
     }
-    return { label: 'Below Threshold (Bottom 20%)', color: 'red', bg: 'bg-red-50', text: 'text-red-700' };
+    return { label: 'Below Threshold', color: 'red', bg: 'bg-red-50', text: 'text-red-700' };
   };
 
   const rankData = getRankData();
