@@ -2647,7 +2647,7 @@ def predict_resume_tier_with_embedding(
             and tfidf_val >= 0.50
         )
         if is_stuffed_signal:
-            prob_score = prob_score * 0.35
+            prob_score = prob_score * 0.20
             print(f"[ml_service] Stuffing penalty applied → score={prob_score:.4f}")
 
         # Penalty 2: zero experience AND zero education AND JD had no requirements
