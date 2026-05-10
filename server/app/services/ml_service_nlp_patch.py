@@ -232,26 +232,20 @@ def _worst_section_consecutive_ratio(text: str) -> float:
     Split the resume into sections and return the WORST (highest) consecutive
     repeat ratio found across all sections with enough words to measure.
     """
-    # Debug: show first 300 chars to see actual text format
-    print(f"[nlp_patch] raw_text_sample={repr(text[:300])}")
-
     sections = _SECTION_SPLIT_RE.split(text)
-    print(f"[nlp_patch] sections_found={len(sections)}")
 
     if len(sections) <= 1:
-        # Try case-insensitive split on common headers without requiring \n
+        # Fallback: case-insensitive split on common headers without requiring \n
         sections = re.split(
             r"(?i)\b(professional\s+experience|professional\s+summary|"
             r"work\s+experience|skills|education|projects|certifications|"
             r"summary|objective|employment|achievements)\b",
             text,
         )
-        print(f"[nlp_patch] fallback_sections_found={len(sections)}")
 
     if len(sections) <= 1:
         # Last resort: split on double newlines
         sections = re.split(r"\n\s*\n", text)
-        print(f"[nlp_patch] double_newline_sections_found={len(sections)}")
 
     worst_ratio = 0.0
     for section in sections:
@@ -311,27 +305,16 @@ def _is_stuffed_resume(text: str) -> bool:
     whole_doc_consec   = _consecutive_repeat_ratio(text)
     has_history        = _has_work_history(text)
 
-    print(
-        f"[nlp_patch] stuffing_check | "
-        f"worst_section_ttr={worst_ttr:.3f} | "
-        f"worst_section_consec={worst_sec_consec:.3f} | "
-        f"whole_doc_consec={whole_doc_consec:.3f} | "
-        f"has_work_history={has_history}"
-    )
-
     # Signal A: low section TTR + no history
     if worst_ttr < 0.25 and not has_history:
-        print("[nlp_patch] stuffing_check → FLAGGED (Signal A: low TTR + no history)")
         return True
 
     # Signal B: high consecutive repeat in a specific section
     if worst_sec_consec >= 0.25:
-        print(f"[nlp_patch] stuffing_check → FLAGGED (Signal B: section consec={worst_sec_consec:.3f})")
         return True
 
     # Signal C: whole-doc consecutive repeat fallback
     if whole_doc_consec >= 0.30:
-        print(f"[nlp_patch] stuffing_check → FLAGGED (Signal C: whole_doc consec={whole_doc_consec:.3f})")
         return True
 
     return False
@@ -633,6 +616,22 @@ def extract_resume_years(resume_text: str) -> float:
 
 def _original_extract_resume_years(resume_text: str) -> float:
     h = _host()
+
+    # Education section keywords — segments near these should be zero-weighted
+    _EDU_CONTEXT_TERMS = {
+        "bachelor", "master", "phd", "doctorate", "doctoral", "degree",
+        "graduate", "graduated", "university", "college", "school",
+        "gpa", "coursework", "thesis", "information technology",
+        "computer science", "engineering", "b s", "bs", "bsc", "ms", "msc",
+        "associate", "diploma", "certification course",
+    }
+
+    _WORK_OVERRIDE_TERMS = {
+        "experience", "work history", "professional experience",
+        "employment", "career", "present", "current", "company",
+        "developer", "engineer", "analyst", "manager", "specialist",
+    }
+
     explicit_patterns = [
         h._NUM_PATTERN + r"\+?\s*(?:years?|yrs?)\s+(?:of\s+)?experience",
         r"(?:at\s+least|over|more\s+than|with)\s+" + h._NUM_PATTERN
@@ -646,29 +645,44 @@ def _original_extract_resume_years(resume_text: str) -> float:
         r"professional\s+experience\s+(?:of\s+)?" + h._NUM_PATTERN + r"\s*(?:years?|yrs?)",
         h._NUM_PATTERN + r"\s*(?:years?|yrs?)\s+(?:in|with|of)",
     ]
+
     explicit_values    = []
     weighted_intervals = []
     segments = h.experience_segments(resume_text)
+
     for index, segment in enumerate(segments):
+        # Wider context window: look back 3 segments instead of 1
+        # Catches education dates separated from their keywords by 2-3 segments
+        lookback_start   = max(0, index - 3)
+        wide_context     = " ".join(segments[lookback_start: index + 1]).lower()
+
+        # If education keyword in wide context AND no work override → skip
+        if any(term in wide_context for term in _EDU_CONTEXT_TERMS):
+            if not any(term in wide_context for term in _WORK_OVERRIDE_TERMS):
+                continue
+
         context = h._segment_context_window(segments, index)
         weight  = h._experience_segment_weight(segment, context=context)
         if weight <= 0:
             continue
-        seg_vals = h._extract_explicit_year_values(segment, explicit_patterns, range_mode="max")
+
+        seg_vals = h._extract_explicit_year_values(
+            segment, explicit_patterns, range_mode="max"
+        )
         seg_vals.extend(h._extract_explicit_duration_years(segment))
         explicit_values.extend(v * weight for v in seg_vals)
+
         for interval in h._extract_date_intervals_from_segment(segment):
             weighted_intervals.append((interval, weight))
+
     interval_years = h._weighted_intervals_to_years(weighted_intervals)
     explicit_years  = max(explicit_values) if explicit_values else 0
+
     if explicit_years or interval_years:
         return max(explicit_years, interval_years)
+
     return h._estimate_implicit_resume_years(resume_text)
 
-
-# ===========================================================================
-# 6. extract_required_years  (no recursion)
-# ===========================================================================
 
 def extract_required_years(job_description: str) -> float:
     if not job_description:
@@ -710,22 +724,15 @@ def skills_match_score(
     tfidf_sim: float = 0.0,
     sbert_sim: float = 0.0,
 ) -> int:
-    print(f"[nlp_patch] skills_match_score | tfidf={tfidf_sim:.4f} sbert={sbert_sim:.4f}")
-
     if _is_fake_resume(resume_text):
-        print("[nlp_patch] → 0 (fake resume)")
         return 0
 
     gate = _relevance_gate(tfidf_sim, sbert_sim)
-    print(f"[nlp_patch] gate={gate}")
     if gate == "reject":
-        print("[nlp_patch] → 0 (gate rejected)")
         return 0
 
     stuffed = _is_stuffed_resume(resume_text)
-    print(f"[nlp_patch] stuffed={stuffed}")
     cap     = _STUFFED_CAPS["skills"] if stuffed else 2
-    print(f"[nlp_patch] skills_cap={cap}")
 
     h             = _host()
     jd_skills     = extract_skills(job_description)
