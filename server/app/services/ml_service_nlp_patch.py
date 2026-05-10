@@ -10,12 +10,12 @@ Fix 1 – Relevance gate (TF-IDF + SBERT threshold before any scoring)
 Fix 2 – Hard skills vs soft skills separation
 Fix 3 – Field extraction only from degree-phrase context windows
 Fix 4 – Fake / lorem ipsum resume guard
-Fix 5 – Keyword stuffing detector using Type-Token Ratio + work history check
-         Uses TWO signals that must BOTH agree before flagging:
-           - TTR < 0.20  (same words repeated over and over)
-           - No real work history dates found
-         This prevents penalizing legitimate resumes that naturally
-         repeat domain terms (e.g. a real React developer's resume).
+Fix 5 – Improved keyword stuffing detector:
+         - Per-section TTR (worst section wins, not whole-document average)
+           Prevents filler summary from masking a stuffed experience section
+         - Consecutive repeat ratio (independent signal, no threshold combo needed)
+           "React React React" → ratio ~0.73 → flagged immediately
+         - Both signals checked independently — either one alone is enough
 """
 
 from __future__ import annotations
@@ -66,7 +66,6 @@ def _host():
 def _relevance_gate(tfidf_sim: float, sbert_sim: float) -> str:
     """
     Returns 'reject', 'weak', or 'normal'.
-
     reject : sbert < 0.15 AND tfidf < 0.05  → all scores = 0
     weak   : sbert < 0.25 AND tfidf < 0.10  → scores capped
     normal : anything else                   → full scoring
@@ -82,14 +81,12 @@ def _relevance_gate(tfidf_sim: float, sbert_sim: float) -> str:
 # FIX 2 – HARD vs SOFT SKILL SEPARATION
 # ===========================================================================
 
-# Soft skills never count toward skills_match_score
 _SOFT_SKILLS = {
     "leadership", "communication", "problem solving", "customer service",
     "scheduling", "team management", "compliance", "training",
     "time management", "integrity", "cash handling", "inventory management",
 }
 
-# These skills need a technical context keyword nearby before being accepted
 _STRONG_EVIDENCE_REQUIRED = {
     "excel", "word", "access", "accounting", "laravel",
     "azure", "gcp", "cybersecurity", "fastapi",
@@ -137,9 +134,7 @@ _LOREM_IPSUM_SIGNALS = {
 _MIN_REAL_WORD_COUNT = 40
 
 def _is_fake_resume(text: str) -> bool:
-    """
-    True if the resume is a lorem ipsum template or has too little real content.
-    """
+    """True if the resume is a lorem ipsum template or has too little real content."""
     if not text:
         return True
     lower = text.lower()
@@ -154,11 +149,30 @@ def _is_fake_resume(text: str) -> bool:
 
 
 # ===========================================================================
-# FIX 5 – KEYWORD STUFFING DETECTOR
+# FIX 5 – IMPROVED KEYWORD STUFFING DETECTOR
 # ===========================================================================
 
-_DATE_PATTERN = re.compile(
-    r"\b(19|20)\d{2}\b"                                        # 4-digit years
+# Section header splitter — splits resume into named sections
+_SECTION_SPLIT_RE = re.compile(
+    r"\n(?:professional\s+)?(?:experience|summary|skills|education|"
+    r"projects|certifications|objective|profile|employment|achievements)\b",
+    re.IGNORECASE,
+)
+
+# Action verbs that signal real work experience descriptions
+_ACTION_VERBS_RE = re.compile(
+    r"\b(built|developed|designed|led|managed|created|implemented|"
+    r"optimized|maintained|deployed|migrated|integrated|architected|"
+    r"delivered|improved|reduced|increased|automated|collaborated|"
+    r"coordinated|mentored|reviewed|tested|analyzed|researched|"
+    r"established|launched|scaled|supported|resolved|handled|"
+    r"engineered|refactored|debugged|configured|monitored|executed)\b",
+    re.IGNORECASE,
+)
+
+# Date pattern — years and month names
+_DATE_RE = re.compile(
+    r"\b(19|20)\d{2}\b"
     r"|"
     r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|"
     r"may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|"
@@ -166,66 +180,119 @@ _DATE_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-_ACTION_VERBS = re.compile(
-    r"\b(built|developed|designed|led|managed|created|implemented|"
-    r"optimized|maintained|deployed|migrated|integrated|architected|"
-    r"delivered|improved|reduced|increased|automated|collaborated|"
-    r"coordinated|mentored|reviewed|tested|analyzed|researched|"
-    r"established|launched|scaled|supported|resolved|handled)\b",
-    re.IGNORECASE,
-)
+# Max scores allowed for stuffed resumes
+_STUFFED_CAPS = {
+    "skills": 1,    # partial credit — they listed real skills
+    "domain":  0.5, # partial domain credit
+    "edu":     0,   # cannot verify education from keyword lists
+    "exp":     0,   # cannot verify experience from stuffed text
+}
 
 
 def _type_token_ratio(text: str) -> float:
     """
     Ratio of unique words to total words.
-    Legitimate resume: ~0.40–0.70
-    Stuffed resume:    ~0.10–0.20  (same words repeated constantly)
+    Legitimate prose: ~0.40–0.70
+    Stuffed text:     ~0.10–0.20
     """
     words = re.findall(r"[a-z]{2,}", text.lower())
     if not words:
-        return 1.0  # empty text — handled by other guards
+        return 1.0
     return len(set(words)) / len(words)
+
+
+def _section_stuffing_score(text: str) -> float:
+    """
+    Split the resume into sections and return the WORST (lowest) TTR
+    found across all sections with enough words to measure.
+
+    This prevents a clean professional summary from masking a
+    stuffed experience section when averaging over the whole document.
+    """
+    sections = _SECTION_SPLIT_RE.split(text)
+    if len(sections) <= 1:
+        # No sections found — check the whole text
+        return _type_token_ratio(text)
+
+    worst_ttr = 1.0
+    for section in sections:
+        section = section.strip()
+        words   = re.findall(r"[a-z]{2,}", section.lower())
+        if len(words) < 10:
+            # Too short to measure reliably — skip
+            continue
+        ttr       = len(set(words)) / len(words)
+        worst_ttr = min(worst_ttr, ttr)
+
+    return worst_ttr
+
+
+def _consecutive_repeat_ratio(text: str) -> float:
+    """
+    Fraction of consecutive word pairs that are the same word.
+
+    'React React React React' → ~1.0  (all pairs repeat)
+    Normal prose              → ~0.01–0.05
+
+    This is an INDEPENDENT signal — does not depend on TTR.
+    'React React React' inside a long clean resume will still
+    have a high consecutive repeat ratio in that section.
+    """
+    words = re.findall(r"[a-z]{2,}", text.lower())
+    if len(words) < 2:
+        return 0.0
+    repeats = sum(1 for i in range(1, len(words)) if words[i] == words[i - 1])
+    return repeats / (len(words) - 1)
 
 
 def _has_work_history(text: str) -> bool:
     """
-    True if the resume contains at least 2 date references AND
-    at least 2 action verbs — signals real work experience entries.
+    True if the resume has at least 2 date references AND 2 action verbs.
+    Both are required — a list of dates with no verbs is not work history.
     """
-    date_hits   = len(_DATE_PATTERN.findall(text))
-    action_hits = len(_ACTION_VERBS.findall(text))
+    date_hits   = len(_DATE_RE.findall(text))
+    action_hits = len(_ACTION_VERBS_RE.findall(text))
     return date_hits >= 2 and action_hits >= 2
 
 
 def _is_stuffed_resume(text: str) -> bool:
     """
-    True ONLY when BOTH signals agree the resume is stuffed:
-      1. Type-Token Ratio < 0.20  (dominated by repeated tokens)
-      2. No real work history     (no dates + action verbs)
+    Returns True if the resume appears to be keyword-stuffed.
 
-    Requiring both signals prevents false positives on:
-    - Legitimate resumes that repeat domain terms naturally
-    - Short resumes with few unique words but real experience
-    - Technical resumes with lots of tool names
+    TWO independent signals — either one alone is enough to flag:
+
+    Signal A: worst section TTR < 0.20 AND no real work history
+      → catches stuffed experience sections hidden by clean summaries
+      → requires BOTH (low TTR AND no history) to avoid false positives
+        on legitimate short/technical resumes
+
+    Signal B: consecutive repeat ratio >= 0.30
+      → catches "React React React" patterns independently
+      → one signal alone is enough here because this pattern
+        essentially never appears in legitimate resumes
     """
-    ttr          = _type_token_ratio(text)
+    worst_ttr    = _section_stuffing_score(text)
+    consec_ratio = _consecutive_repeat_ratio(text)
     has_history  = _has_work_history(text)
 
-    # Log for debugging
-    print(f"[nlp_patch] stuffing check | TTR={ttr:.3f} | has_work_history={has_history}")
+    print(
+        f"[nlp_patch] stuffing_check | "
+        f"worst_section_ttr={worst_ttr:.3f} | "
+        f"consec_repeat_ratio={consec_ratio:.3f} | "
+        f"has_work_history={has_history}"
+    )
 
-    # Both must agree before we flag
-    return ttr < 0.20 and not has_history
+    # Signal A: stuffed section + no real history
+    if worst_ttr < 0.20 and not has_history:
+        print("[nlp_patch] stuffing_check → FLAGGED (low section TTR + no history)")
+        return True
 
+    # Signal B: consecutive repetition (independent — no combo needed)
+    if consec_ratio >= 0.30:
+        print("[nlp_patch] stuffing_check → FLAGGED (consecutive repeat ratio too high)")
+        return True
 
-# Max scores allowed for a stuffed resume (partial credit, not zero)
-_STUFFED_CAPS = {
-    "skills": 1,   # partial credit — they listed real skills
-    "domain":  0.5, # partial domain credit
-    "edu":     0,   # education can't be verified from keyword lists
-    "exp":     0,   # experience is hidden behind keyword noise
-}
+    return False
 
 
 # ===========================================================================
@@ -276,7 +343,7 @@ def _strict_word_match(text: str, term: str) -> bool:
 def _build_skill_matcher():
     if not _SPACY_OK:
         return None
-    h = _host()
+    h       = _host()
     matcher = PhraseMatcher(_nlp.vocab, attr="LOWER")
     for canonical, aliases in h.SKILL_ALIASES.items():
         patterns = [_nlp.make_doc(a) for a in aliases if len(a) >= 4]
@@ -289,7 +356,7 @@ def _build_skill_matcher():
 def _build_domain_matcher():
     if not _SPACY_OK:
         return None
-    h = _host()
+    h       = _host()
     matcher = PhraseMatcher(_nlp.vocab, attr="LOWER")
     for domain, keywords in h.DOMAIN_KEYWORDS.items():
         patterns = [_nlp.make_doc(kw) for kw in keywords]
@@ -301,7 +368,7 @@ def _build_domain_matcher():
 def _build_field_matcher():
     if not _SPACY_OK:
         return None
-    h = _host()
+    h       = _host()
     matcher = PhraseMatcher(_nlp.vocab, attr="LOWER")
     for canonical, aliases in h.FIELD_ALIASES.items():
         if canonical.lower() in _FIELD_HEADER_BLOCKLIST:
@@ -322,12 +389,12 @@ def _build_field_matcher():
 def extract_skills(text: str) -> set:
     """
     Extract canonical HARD skill names only.
-    Soft skills never count. Strong-evidence skills need tech context nearby.
+    Soft skills never count. Strong-evidence skills require tech context nearby.
     """
     if not text:
         return set()
 
-    h = _host()
+    h          = _host()
     text       = _join_split_lines(text)
     normalised = h.normalize_text(text)
     sentences  = re.split(r"[.!?\n]", normalised)
@@ -351,7 +418,7 @@ def extract_skills(text: str) -> set:
         if matched:
             found.add(canonical)
 
-    # RapidFuzz pass
+    # RapidFuzz pass for OCR/typo variants
     if _FUZZ_OK and len(text) < 15_000:
         alias_table = [
             (alias, canonical)
@@ -389,7 +456,7 @@ def extract_domains(text: str) -> set:
     if not text:
         return set()
 
-    h = _host()
+    h     = _host()
     text  = _join_split_lines(text)
     found: set[str] = set()
 
@@ -537,7 +604,7 @@ def _original_extract_resume_years(resume_text: str) -> float:
         r"professional\s+experience\s+(?:of\s+)?" + h._NUM_PATTERN + r"\s*(?:years?|yrs?)",
         h._NUM_PATTERN + r"\s*(?:years?|yrs?)\s+(?:in|with|of)",
     ]
-    explicit_values   = []
+    explicit_values    = []
     weighted_intervals = []
     segments = h.experience_segments(resume_text)
     for index, segment in enumerate(segments):
@@ -601,29 +668,27 @@ def skills_match_score(
     tfidf_sim: float = 0.0,
     sbert_sim: float = 0.0,
 ) -> int:
-    # Fix 4: fake resume
     if _is_fake_resume(resume_text):
         return 0
 
-    # Fix 1: relevance gate
     gate = _relevance_gate(tfidf_sim, sbert_sim)
     if gate == "reject":
         return 0
+
+    stuffed = _is_stuffed_resume(resume_text)
+    cap     = _STUFFED_CAPS["skills"] if stuffed else 2
 
     h             = _host()
     jd_skills     = extract_skills(job_description)
     resume_skills = extract_skills(resume_text)
     has_semantic_signal = tfidf_sim > 0 or sbert_sim > 0
 
-    # Fix 5: stuffing detector — cap score if stuffed
-    stuffed = _is_stuffed_resume(resume_text)
-    cap     = _STUFFED_CAPS["skills"] if stuffed else 2
-
     if not jd_skills:
         jd_domains  = extract_domains(job_description)
         jd_families = h.extract_role_families(job_description)
         raw = 1 if (jd_domains or jd_families) else 0
-        return min(raw, cap, 1 if gate == "weak" else 2)
+        raw = min(raw, cap)
+        return min(raw, 1) if gate == "weak" else raw
 
     overlap = len(jd_skills & resume_skills)
     ratio   = overlap / max(len(jd_skills), 1)
@@ -670,7 +735,6 @@ def skills_match_score(
         else:
             raw = 0
 
-    # Apply caps: stuffing cap first, then weak gate cap
     raw = min(raw, cap)
     return min(raw, 1) if gate == "weak" else raw
 
@@ -773,11 +837,9 @@ def education_match_details(
         match_type=match_type, related_phrase_ok=related_ok, score=score,
     )
 
-    # Fix 4 + Fix 5: fake or stuffed → zero education score
     if _is_fake_resume(resume_text) or _is_stuffed_resume(resume_text):
         return base_result
 
-    # Fix 1: relevance gate
     gate = _relevance_gate(tfidf_sim, sbert_sim)
     if gate == "reject":
         return base_result
