@@ -2622,8 +2622,45 @@ def predict_resume_tier_with_embedding(
         feature_vec, resume_emb, _ = build_feature_vector(resume_text, effective_job)
 
         probabilities = classifier.predict_proba(feature_vec)
-        # Class index 1 = "hired / shortlist" class
         prob_score = float(probabilities[0][1])
+
+        # ── Post-model penalty for stuffed/low-substance resumes ──────────────────
+        # XGBoost was trained before stuffing detection existed, so high TF-IDF/SBERT
+        # from keyword spam still inflates its output. We apply a rule-based penalty
+        # AFTER the model scores, using the same feature vector it already computed.
+        skills_val  = float(feature_vec[0, 2])  # 0-2
+        exp_val     = float(feature_vec[0, 3])  # 0-3
+        edu_val     = float(feature_vec[0, 4])  # 0-2
+        domain_val  = float(feature_vec[0, 5])  # 0-1
+
+        # Penalty 1: stuffed resume (skills capped at 1, domain capped at 0.5)
+        # Signature: skills <= 1 AND domain <= 0.5 AND exp == 0 AND edu == 0
+        # AND high semantic similarity (meaning the model was fooled by keyword spam)
+        tfidf_val  = float(feature_vec[0, 0])
+        sbert_val  = float(feature_vec[0, 1])
+        is_stuffed_signal = (
+            skills_val <= 1.0
+            and domain_val <= 0.5
+            and exp_val == 0
+            and edu_val == 0
+            and sbert_val >= 0.60
+            and tfidf_val >= 0.50
+        )
+        if is_stuffed_signal:
+            prob_score = prob_score * 0.35
+            print(f"[ml_service] Stuffing penalty applied → score={prob_score:.4f}")
+
+        # Penalty 2: zero experience AND zero education AND JD had no requirements
+        # This catches cases where JD stated nothing, so exp/edu are 0 for everyone.
+        # In this case we penalise based on how weak the hard-logic scores are.
+        hard_logic_total = skills_val + domain_val  # max possible = 3.0
+        if exp_val == 0 and edu_val == 0 and hard_logic_total <= 1.5:
+            penalty_factor = 0.5 + (hard_logic_total / 3.0) * 0.3  # 0.50 to 0.65
+            prob_score = prob_score * penalty_factor
+            print(f"[ml_service] Weak hard-logic penalty applied → score={prob_score:.4f}")
+
+        prob_score = max(0.0, min(1.0, prob_score))
+        # ── End post-model penalty ─────────────────────────────────────────────────
 
         # GYR tier thresholds
         if prob_score >= 0.7:
