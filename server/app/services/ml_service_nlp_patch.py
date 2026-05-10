@@ -4,31 +4,24 @@ ml_service_nlp_patch.py
 Drop-in NLP-enhanced replacements for the core extraction + scoring
 functions in ml_service.py.
 
-4 FIXES IN THIS VERSION
-------------------------
+ALL FIXES IN THIS VERSION
+--------------------------
 Fix 1 – Relevance gate (TF-IDF + SBERT threshold before any scoring)
-  If the resume is semantically unrelated to the JD, all 4 dimension
-  scores are zeroed or capped before extraction results even matter.
-  Gate levels: "reject" → all 0 | "weak" → capped scores | "normal" → full
-
-Fix 2 – Expand _STRONG_EVIDENCE_REQUIRED + separate soft from hard skills
-  Soft skills (communication, leadership, scheduling, etc.) are split into
-  their own set. They NEVER contribute to skills_match_score — only hard/
-  technical skills count. Soft skills still show in debug but don't score.
-
-Fix 3 – Section header blocklist for extract_fields
-  "Education", "Experience", "Skills", etc. are never returned as fields.
-  "marketing" appearing in a Web Dev resume from a section label is blocked.
-  Field extraction now ONLY fires inside degree-phrase context windows.
-
-Fix 4 – Fake/lorem ipsum resume guard
-  Resumes with lorem ipsum signals or too few real words return 0 on all
-  dimensions immediately, before any extraction runs.
+Fix 2 – Hard skills vs soft skills separation
+Fix 3 – Field extraction only from degree-phrase context windows
+Fix 4 – Fake / lorem ipsum resume guard
+Fix 5 – Keyword stuffing detector using Type-Token Ratio + work history check
+         Uses TWO signals that must BOTH agree before flagging:
+           - TTR < 0.20  (same words repeated over and over)
+           - No real work history dates found
+         This prevents penalizing legitimate resumes that naturally
+         repeat domain terms (e.g. a real React developer's resume).
 """
 
 from __future__ import annotations
 
 import re
+from collections import Counter
 from functools import lru_cache
 
 # ---------------------------------------------------------------------------
@@ -72,12 +65,11 @@ def _host():
 
 def _relevance_gate(tfidf_sim: float, sbert_sim: float) -> str:
     """
-    Returns 'reject', 'weak', or 'normal' based on combined semantic signal.
+    Returns 'reject', 'weak', or 'normal'.
 
-    Thresholds (calibrated against observed scores):
-      reject : sbert < 0.15 AND tfidf < 0.05  → all dimension scores = 0
-      weak   : sbert < 0.25 AND tfidf < 0.10  → scores capped (skills≤1, domain≤0.5, edu≤1, exp≤1)
-      normal : anything else                   → full scoring logic runs
+    reject : sbert < 0.15 AND tfidf < 0.05  → all scores = 0
+    weak   : sbert < 0.25 AND tfidf < 0.10  → scores capped
+    normal : anything else                   → full scoring
     """
     if sbert_sim < 0.15 and tfidf_sim < 0.05:
         return "reject"
@@ -87,37 +79,23 @@ def _relevance_gate(tfidf_sim: float, sbert_sim: float) -> str:
 
 
 # ===========================================================================
-# FIX 2 – HARD SKILLS vs SOFT SKILLS SEPARATION
+# FIX 2 – HARD vs SOFT SKILL SEPARATION
 # ===========================================================================
 
-# Soft skills: NEVER count toward skills_match_score.
-# They may still appear in debug output but don't affect scoring.
+# Soft skills never count toward skills_match_score
 _SOFT_SKILLS = {
     "leadership", "communication", "problem solving", "customer service",
     "scheduling", "team management", "compliance", "training",
     "time management", "integrity", "cash handling", "inventory management",
 }
 
-# Skills that need a technical context keyword nearby before being accepted.
-# (Catches "excellent" → "excel", "accounting" in generic text, etc.)
+# These skills need a technical context keyword nearby before being accepted
 _STRONG_EVIDENCE_REQUIRED = {
-    # Ambiguous / short tokens
-    "excel",              # "excellent" → false hit
-    "word",               # any sentence with "word"
-    "access",             # "access to" vs "microsoft access"
-    # Soft skills that bleed into any office text
-    "accounting",         # needs finance context
-    "laravel",            # needs PHP/dev context
-    "azure",              # needs cloud context
-    "gcp",                # needs cloud context
-    "cybersecurity",      # needs security context
-    "fastapi",            # needs Python/API context
-    "feature engineering",# needs ML context
-    "marketing",          # word appears everywhere — needs marketing context
-    "sales",              # same
+    "excel", "word", "access", "accounting", "laravel",
+    "azure", "gcp", "cybersecurity", "fastapi",
+    "feature engineering", "marketing", "sales",
 }
 
-# Keywords that validate a strong-evidence skill
 _TECH_CONTEXT_KEYWORDS = {
     "microsoft", "office suite", "spreadsheet", "database", "server",
     "cloud", "platform", "framework", "php", "python", "api", "devops",
@@ -134,7 +112,6 @@ _TECH_CONTEXT_KEYWORDS = {
 # FIX 3 – FIELD HEADER BLOCKLIST
 # ===========================================================================
 
-# These words appear as section headers and must NEVER be treated as fields.
 _FIELD_HEADER_BLOCKLIST = {
     "education", "experience", "skills", "references", "contact",
     "language", "languages", "summary", "objective", "profile",
@@ -146,7 +123,7 @@ _FIELD_HEADER_BLOCKLIST = {
 
 
 # ===========================================================================
-# FIX 4 – FAKE / LOREM IPSUM RESUME GUARD
+# FIX 4 – FAKE / LOREM IPSUM GUARD
 # ===========================================================================
 
 _LOREM_IPSUM_SIGNALS = {
@@ -161,22 +138,94 @@ _MIN_REAL_WORD_COUNT = 40
 
 def _is_fake_resume(text: str) -> bool:
     """
-    Return True if the resume is a template/lorem ipsum dummy or has
-    too little real content to score.
+    True if the resume is a lorem ipsum template or has too little real content.
     """
     if not text:
         return True
     lower = text.lower()
     if any(signal in lower for signal in _LOREM_IPSUM_SIGNALS):
         return True
-    # Strip section headers and count remaining real words
     stripped = re.sub(
         r"\b(education|experience|skills|contact|references|language|"
         r"summary|objective|profile|work|employment|certifications)\b",
         "", lower, flags=re.IGNORECASE,
     )
-    word_count = len(re.findall(r"[a-z]{3,}", stripped))
-    return word_count < _MIN_REAL_WORD_COUNT
+    return len(re.findall(r"[a-z]{3,}", stripped)) < _MIN_REAL_WORD_COUNT
+
+
+# ===========================================================================
+# FIX 5 – KEYWORD STUFFING DETECTOR
+# ===========================================================================
+
+_DATE_PATTERN = re.compile(
+    r"\b(19|20)\d{2}\b"                                        # 4-digit years
+    r"|"
+    r"\b(jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|"
+    r"may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|"
+    r"oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b",
+    re.IGNORECASE,
+)
+
+_ACTION_VERBS = re.compile(
+    r"\b(built|developed|designed|led|managed|created|implemented|"
+    r"optimized|maintained|deployed|migrated|integrated|architected|"
+    r"delivered|improved|reduced|increased|automated|collaborated|"
+    r"coordinated|mentored|reviewed|tested|analyzed|researched|"
+    r"established|launched|scaled|supported|resolved|handled)\b",
+    re.IGNORECASE,
+)
+
+
+def _type_token_ratio(text: str) -> float:
+    """
+    Ratio of unique words to total words.
+    Legitimate resume: ~0.40–0.70
+    Stuffed resume:    ~0.10–0.20  (same words repeated constantly)
+    """
+    words = re.findall(r"[a-z]{2,}", text.lower())
+    if not words:
+        return 1.0  # empty text — handled by other guards
+    return len(set(words)) / len(words)
+
+
+def _has_work_history(text: str) -> bool:
+    """
+    True if the resume contains at least 2 date references AND
+    at least 2 action verbs — signals real work experience entries.
+    """
+    date_hits   = len(_DATE_PATTERN.findall(text))
+    action_hits = len(_ACTION_VERBS.findall(text))
+    return date_hits >= 2 and action_hits >= 2
+
+
+def _is_stuffed_resume(text: str) -> bool:
+    """
+    True ONLY when BOTH signals agree the resume is stuffed:
+      1. Type-Token Ratio < 0.20  (dominated by repeated tokens)
+      2. No real work history     (no dates + action verbs)
+
+    Requiring both signals prevents false positives on:
+    - Legitimate resumes that repeat domain terms naturally
+    - Short resumes with few unique words but real experience
+    - Technical resumes with lots of tool names
+    """
+    ttr          = _type_token_ratio(text)
+    has_history  = _has_work_history(text)
+
+    # Log for debugging
+    print(f"[nlp_patch] stuffing check | TTR={ttr:.3f} | has_work_history={has_history}")
+
+    # Both must agree before we flag
+    return ttr < 0.20 and not has_history
+
+
+# Max scores allowed for a stuffed resume (partial credit, not zero)
+_STUFFED_CAPS = {
+    "skills": 1,   # partial credit — they listed real skills
+    "domain":  0.5, # partial domain credit
+    "edu":     0,   # education can't be verified from keyword lists
+    "exp":     0,   # experience is hidden behind keyword noise
+}
 
 
 # ===========================================================================
@@ -184,11 +233,8 @@ def _is_fake_resume(text: str) -> bool:
 # ===========================================================================
 
 def _join_split_lines(text: str) -> str:
-    """
-    Join lines that were split mid-phrase by a PDF extractor.
-    e.g. "Bachelor of Science in\nMarketing" → one scannable string.
-    """
-    lines = text.splitlines()
+    """Join lines split mid-phrase by PDF extraction."""
+    lines  = text.splitlines()
     result = []
     for line in lines:
         stripped = line.strip()
@@ -218,10 +264,6 @@ def _has_tech_context(sentence: str) -> bool:
 
 
 def _strict_word_match(text: str, term: str) -> bool:
-    """
-    True if *term* appears in *text* as a whole word/phrase,
-    not as a substring of a longer word.
-    """
     pattern = r"(?<![a-z0-9])" + re.escape(term.lower()) + r"(?![a-z0-9])"
     return bool(re.search(pattern, text.lower()))
 
@@ -274,47 +316,42 @@ def _build_field_matcher():
 
 
 # ===========================================================================
-# 1. extract_skills  (Fix 2 + Fix 3 applied)
+# 1. extract_skills
 # ===========================================================================
 
 def extract_skills(text: str) -> set:
     """
     Extract canonical HARD skill names only.
-    Soft skills (_SOFT_SKILLS) are excluded — they don't count toward scoring.
-    Strong-evidence skills require a technical context keyword nearby.
+    Soft skills never count. Strong-evidence skills need tech context nearby.
     """
     if not text:
         return set()
 
     h = _host()
-    text = _join_split_lines(text)
+    text       = _join_split_lines(text)
     normalised = h.normalize_text(text)
-    sentences = re.split(r"[.!?\n]", normalised)
+    sentences  = re.split(r"[.!?\n]", normalised)
     found: set[str] = set()
 
     for canonical, aliases in h.SKILL_ALIASES.items():
-        # Fix 2: skip soft skills entirely
         if canonical in _SOFT_SKILLS:
             continue
-
         matched = False
         for alias in aliases:
             if len(alias) < 4:
                 continue
             if not _strict_word_match(normalised, alias):
                 continue
-            # Strong-evidence guard
             if canonical in _STRONG_EVIDENCE_REQUIRED:
                 containing = [s for s in sentences if _strict_word_match(s, alias)]
                 if not containing or not any(_has_tech_context(s) for s in containing):
                     continue
             matched = True
             break
-
         if matched:
             found.add(canonical)
 
-    # RapidFuzz pass for OCR/typo variants
+    # RapidFuzz pass
     if _FUZZ_OK and len(text) < 15_000:
         alias_table = [
             (alias, canonical)
@@ -353,7 +390,7 @@ def extract_domains(text: str) -> set:
         return set()
 
     h = _host()
-    text = _join_split_lines(text)
+    text  = _join_split_lines(text)
     found: set[str] = set()
 
     matcher = _build_domain_matcher()
@@ -367,7 +404,6 @@ def extract_domains(text: str) -> set:
         if any(h.contains_term(normalised, kw) for kw in keywords):
             found.add(domain)
 
-    # Post-processing heuristics (unchanged from original)
     if "data_analytics" in found:
         strong = any(h.contains_term(normalised, t) for t in h._DATA_ANALYTICS_STRONG_TERMS)
         weak   = sum(1 for t in h._DATA_ANALYTICS_WEAK_TERMS if h.contains_term(normalised, t))
@@ -385,16 +421,16 @@ def extract_domains(text: str) -> set:
 
 
 # ===========================================================================
-# 3. extract_degree_level  (multiline PDF fix)
+# 3. extract_degree_level
 # ===========================================================================
 
 def extract_degree_level(text: str) -> str:
     if not text:
         return "none"
-    text = _join_split_lines(text)
+    text      = _join_split_lines(text)
     raw_level = _original_extract_degree_level(text)
     if _SPACY_OK:
-        nlp_level = _original_extract_degree_level(_lemmatise(text))
+        nlp_level   = _original_extract_degree_level(_lemmatise(text))
         level_order = ["none", "bachelor", "master", "phd"]
         if level_order.index(nlp_level) > level_order.index(raw_level):
             return nlp_level
@@ -402,7 +438,7 @@ def extract_degree_level(text: str) -> str:
 
 
 def _original_extract_degree_level(text: str) -> str:
-    h = _host()
+    h    = _host()
     text = h.normalize_text(text)
     text = h._sanitize_for_degree(text)
 
@@ -429,7 +465,7 @@ def _original_extract_degree_level(text: str) -> str:
 
 
 # ===========================================================================
-# 4. extract_fields  (Fix 3: only extract from degree-phrase context windows)
+# 4. extract_fields  (degree-phrase context windows only)
 # ===========================================================================
 
 _DEGREE_CONTEXT_RE = re.compile(
@@ -441,27 +477,18 @@ _DEGREE_CONTEXT_RE = re.compile(
 )
 
 def extract_fields(text: str) -> set:
-    """
-    Fix 3: Fields are ONLY extracted from within degree-phrase context windows.
-    Standalone field words (e.g. "marketing" in a web dev resume body) are ignored.
-    Section headers are blocked.
-    """
     if not text:
         return set()
 
-    h = _host()
+    h    = _host()
     text = _join_split_lines(text)
     found: set[str] = set()
 
-    # ONLY scan within degree-phrase context windows (not the full text)
     for segment in re.split(r"[\n\r]{1,2}", text):
         for m in _DEGREE_CONTEXT_RE.finditer(segment):
             tail = segment[m.end(): m.end() + 150]
             tail = re.split(r"[,|;\n]", tail)[0].strip()
-            if not tail:
-                continue
-            # Reject if the tail is just a section header word
-            if tail.lower().strip() in _FIELD_HEADER_BLOCKLIST:
+            if not tail or tail.lower().strip() in _FIELD_HEADER_BLOCKLIST:
                 continue
             normalised_tail = h.normalize_field_text(tail)
             for canonical, aliases in h.FIELD_ALIASES.items():
@@ -485,11 +512,10 @@ def extract_resume_years(resume_text: str) -> float:
     if not resume_text:
         return 0.0
     resume_text = _join_split_lines(resume_text)
-    base = _original_extract_resume_years(resume_text)
+    base        = _original_extract_resume_years(resume_text)
     if not _SPACY_OK or base > 0:
         return base
-    # NER fallback
-    doc = _nlp_full(resume_text[:50_000])
+    doc   = _nlp_full(resume_text[:50_000])
     dates = [e.text for e in doc.ents if e.label_ == "DATE"]
     if not dates:
         return base
@@ -500,16 +526,18 @@ def _original_extract_resume_years(resume_text: str) -> float:
     h = _host()
     explicit_patterns = [
         h._NUM_PATTERN + r"\+?\s*(?:years?|yrs?)\s+(?:of\s+)?experience",
-        r"(?:at\s+least|over|more\s+than|with)\s+" + h._NUM_PATTERN + r"\s*(?:years?|yrs?)\s*(?:of\s+experience)?",
+        r"(?:at\s+least|over|more\s+than|with)\s+" + h._NUM_PATTERN
+        + r"\s*(?:years?|yrs?)\s*(?:of\s+experience)?",
         r"experience\s*[:\-]?\s*" + h._NUM_PATTERN + r"\s*(?:years?|yrs?)",
-        r"(?:work|working|professional|related)\s+experience\s*[:\-]?\s*" + h._NUM_PATTERN + r"\s*(?:years?|yrs?)",
+        r"(?:work|working|professional|related)\s+experience\s*[:\-]?\s*"
+        + h._NUM_PATTERN + r"\s*(?:years?|yrs?)",
         rf"experience[^.\n]{{0,40}}?{h._NUM_PATTERN}\s*(?:years?|yrs?)",
         h._NUM_PATTERN + r"\s*(?:years?|yrs?)\b[^.\n]{0,40}?experience",
         r"worked\s+for\s+" + h._NUM_PATTERN + r"\s*(?:years?|yrs?)",
         r"professional\s+experience\s+(?:of\s+)?" + h._NUM_PATTERN + r"\s*(?:years?|yrs?)",
         h._NUM_PATTERN + r"\s*(?:years?|yrs?)\s+(?:in|with|of)",
     ]
-    explicit_values = []
+    explicit_values   = []
     weighted_intervals = []
     segments = h.experience_segments(resume_text)
     for index, segment in enumerate(segments):
@@ -523,14 +551,14 @@ def _original_extract_resume_years(resume_text: str) -> float:
         for interval in h._extract_date_intervals_from_segment(segment):
             weighted_intervals.append((interval, weight))
     interval_years = h._weighted_intervals_to_years(weighted_intervals)
-    explicit_years = max(explicit_values) if explicit_values else 0
+    explicit_years  = max(explicit_values) if explicit_values else 0
     if explicit_years or interval_years:
         return max(explicit_years, interval_years)
     return h._estimate_implicit_resume_years(resume_text)
 
 
 # ===========================================================================
-# 6. extract_required_years  (recursion fix)
+# 6. extract_required_years  (no recursion)
 # ===========================================================================
 
 def extract_required_years(job_description: str) -> float:
@@ -540,7 +568,7 @@ def extract_required_years(job_description: str) -> float:
     base = _original_extract_required_years(job_description)
     if base > 0 or not _SPACY_OK:
         return base
-    doc = _nlp_full(job_description[:50_000])
+    doc   = _nlp_full(job_description[:50_000])
     dates = [e.text for e in doc.ents if e.label_ == "DATE"]
     if not dates:
         return base
@@ -564,7 +592,7 @@ def _original_extract_required_years(job_description: str) -> float:
 
 
 # ===========================================================================
-# 7. skills_match_score  (Fix 1 gate + Fix 2 soft skill exclusion)
+# 7. skills_match_score  (all fixes applied)
 # ===========================================================================
 
 def skills_match_score(
@@ -573,7 +601,7 @@ def skills_match_score(
     tfidf_sim: float = 0.0,
     sbert_sim: float = 0.0,
 ) -> int:
-    # Fix 4: fake resume guard
+    # Fix 4: fake resume
     if _is_fake_resume(resume_text):
         return 0
 
@@ -582,19 +610,20 @@ def skills_match_score(
     if gate == "reject":
         return 0
 
-    h = _host()
-    # Fix 2: only hard skills (soft skills excluded inside extract_skills)
+    h             = _host()
     jd_skills     = extract_skills(job_description)
     resume_skills = extract_skills(resume_text)
     has_semantic_signal = tfidf_sim > 0 or sbert_sim > 0
 
+    # Fix 5: stuffing detector — cap score if stuffed
+    stuffed = _is_stuffed_resume(resume_text)
+    cap     = _STUFFED_CAPS["skills"] if stuffed else 2
+
     if not jd_skills:
         jd_domains  = extract_domains(job_description)
         jd_families = h.extract_role_families(job_description)
-        if not jd_domains and not jd_families:
-            return 0
-        raw = 1
-        return min(raw, 1) if gate == "weak" else raw
+        raw = 1 if (jd_domains or jd_families) else 0
+        return min(raw, cap, 1 if gate == "weak" else 2)
 
     overlap = len(jd_skills & resume_skills)
     ratio   = overlap / max(len(jd_skills), 1)
@@ -606,9 +635,8 @@ def skills_match_score(
     elif _sbert_skill_similarity(jd_skills, resume_skills) >= 0.45:
         raw = 1
     else:
-        # Role-family / domain fallback
-        shared_skills = jd_skills & resume_skills
-        jd_domains    = extract_domains(job_description)
+        shared_skills  = jd_skills & resume_skills
+        jd_domains     = extract_domains(job_description)
         resume_domains = extract_domains(resume_text)
         technical_bridge          = bool(shared_skills & h._TECHNICAL_BRIDGE_SKILLS)
         related_technical_context = (
@@ -630,7 +658,6 @@ def skills_match_score(
             bool(resume_skills & h.ROLE_FAMILY_SKILL_HINTS.get(fam, set()))
             for fam in jd_families
         )
-
         if overlap >= 1 and technical_bridge and related_technical_context:
             raw = 1
         elif (overlap == 0 and related_technical_context
@@ -643,6 +670,8 @@ def skills_match_score(
         else:
             raw = 0
 
+    # Apply caps: stuffing cap first, then weak gate cap
+    raw = min(raw, cap)
     return min(raw, 1) if gate == "weak" else raw
 
 
@@ -662,7 +691,7 @@ def _sbert_skill_similarity(jd_skills: set, resume_skills: set) -> float:
 
 
 # ===========================================================================
-# 8. domain_alignment_score  (Fix 1 gate + Fix 4 fake guard, graded float)
+# 8. domain_alignment_score  (all fixes applied, graded float)
 # ===========================================================================
 
 def domain_alignment_score(
@@ -671,20 +700,21 @@ def domain_alignment_score(
     tfidf_sim: float = 0.0,
     sbert_sim: float = 0.0,
 ) -> float:
-    # Fix 4
     if _is_fake_resume(resume_text):
         return 0.0
 
-    # Fix 1
     gate = _relevance_gate(tfidf_sim, sbert_sim)
     if gate == "reject":
         return 0.0
 
-    h = _host()
+    stuffed = _is_stuffed_resume(resume_text)
+    cap     = _STUFFED_CAPS["domain"] if stuffed else 1.0
+
+    h              = _host()
     jd_domains     = extract_domains(job_description)
     resume_domains = extract_domains(resume_text)
     _, _, family_relation = h.role_family_relation(resume_text, job_description)
-    has_semantic_signal = tfidf_sim > 0 or sbert_sim > 0
+    has_semantic_signal   = tfidf_sim > 0 or sbert_sim > 0
 
     if not jd_domains:
         raw = 0.75 if family_relation == "same" else 0.0
@@ -704,11 +734,12 @@ def domain_alignment_score(
                     raw = 0.25 if has_semantic_signal else 0.0
                     break
 
+    raw = min(raw, cap)
     return min(raw, 0.5) if gate == "weak" else raw
 
 
 # ===========================================================================
-# 9. education_match_details + education_match_score  (Fix 1 gate + Fix 4)
+# 9. education_match_details + education_match_score  (all fixes applied)
 # ===========================================================================
 
 def education_match_details(
@@ -722,10 +753,10 @@ def education_match_details(
     jd_context     = h.extract_education_context(job_description, source="job")
     resume_context = h.extract_education_context(resume_text,     source="resume")
 
-    required_level  = extract_degree_level(jd_context     or job_description)
-    candidate_level = extract_degree_level(resume_context  or resume_text)
-    jd_fields       = extract_fields(jd_context     or job_description)
-    resume_fields   = extract_fields(resume_context  or resume_text)
+    required_level  = extract_degree_level(jd_context    or job_description)
+    candidate_level = extract_degree_level(resume_context or resume_text)
+    jd_fields       = extract_fields(jd_context    or job_description)
+    resume_fields   = extract_fields(resume_context or resume_text)
 
     normalised_jd = h.normalize_field_text(jd_context or job_description)
     related_ok    = any(p in normalised_jd for p in h._RELATED_FIELD_ALLOWANCE_PHRASES)
@@ -742,8 +773,8 @@ def education_match_details(
         match_type=match_type, related_phrase_ok=related_ok, score=score,
     )
 
-    # Fix 4: fake resume
-    if _is_fake_resume(resume_text):
+    # Fix 4 + Fix 5: fake or stuffed → zero education score
+    if _is_fake_resume(resume_text) or _is_stuffed_resume(resume_text):
         return base_result
 
     # Fix 1: relevance gate
@@ -780,4 +811,6 @@ def education_match_score(
     sbert_sim: float = 0.0,
     debug: bool = False,
 ) -> int:
-    return education_match_details(resume_text, job_description, tfidf_sim, sbert_sim)["score"]
+    return education_match_details(
+        resume_text, job_description, tfidf_sim, sbert_sim
+    )["score"]
