@@ -231,14 +231,27 @@ def _worst_section_consecutive_ratio(text: str) -> float:
     """
     Split the resume into sections and return the WORST (highest) consecutive
     repeat ratio found across all sections with enough words to measure.
-
-    This prevents normal sentences in the summary from diluting the spam
-    signal in the experience section.
     """
+    # Debug: show first 300 chars to see actual text format
+    print(f"[nlp_patch] raw_text_sample={repr(text[:300])}")
+
     sections = _SECTION_SPLIT_RE.split(text)
+    print(f"[nlp_patch] sections_found={len(sections)}")
+
     if len(sections) <= 1:
-        # No section headers found — try splitting on double newlines
+        # Try case-insensitive split on common headers without requiring \n
+        sections = re.split(
+            r"(?i)\b(professional\s+experience|professional\s+summary|"
+            r"work\s+experience|skills|education|projects|certifications|"
+            r"summary|objective|employment|achievements)\b",
+            text,
+        )
+        print(f"[nlp_patch] fallback_sections_found={len(sections)}")
+
+    if len(sections) <= 1:
+        # Last resort: split on double newlines
         sections = re.split(r"\n\s*\n", text)
+        print(f"[nlp_patch] double_newline_sections_found={len(sections)}")
 
     worst_ratio = 0.0
     for section in sections:
