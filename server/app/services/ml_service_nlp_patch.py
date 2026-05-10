@@ -227,16 +227,36 @@ def _section_stuffing_score(text: str) -> float:
     return worst_ttr
 
 
+def _worst_section_consecutive_ratio(text: str) -> float:
+    """
+    Split the resume into sections and return the WORST (highest) consecutive
+    repeat ratio found across all sections with enough words to measure.
+
+    This prevents normal sentences in the summary from diluting the spam
+    signal in the experience section.
+    """
+    sections = _SECTION_SPLIT_RE.split(text)
+    if len(sections) <= 1:
+        # No section headers found — try splitting on double newlines
+        sections = re.split(r"\n\s*\n", text)
+
+    worst_ratio = 0.0
+    for section in sections:
+        section = section.strip()
+        words   = re.findall(r"[a-z]{2,}", section.lower())
+        if len(words) < 5:
+            continue
+        repeats = sum(1 for i in range(1, len(words)) if words[i] == words[i - 1])
+        ratio   = repeats / (len(words) - 1)
+        worst_ratio = max(worst_ratio, ratio)
+
+    return worst_ratio
+
+
 def _consecutive_repeat_ratio(text: str) -> float:
     """
     Fraction of consecutive word pairs that are the same word.
-
-    'React React React React' → ~1.0  (all pairs repeat)
-    Normal prose              → ~0.01–0.05
-
-    This is an INDEPENDENT signal — does not depend on TTR.
-    'React React React' inside a long clean resume will still
-    have a high consecutive repeat ratio in that section.
+    Whole-document version — used as fallback.
     """
     words = re.findall(r"[a-z]{2,}", text.lower())
     if len(words) < 2:
@@ -259,37 +279,46 @@ def _is_stuffed_resume(text: str) -> bool:
     """
     Returns True if the resume appears to be keyword-stuffed.
 
-    TWO independent signals — either one alone is enough to flag:
+    THREE signals checked — any one can flag:
 
-    Signal A: worst section TTR < 0.20 AND no real work history
-      → catches stuffed experience sections hidden by clean summaries
-      → requires BOTH (low TTR AND no history) to avoid false positives
-        on legitimate short/technical resumes
+    Signal A: worst section TTR < 0.25 AND no real work history
+      Catches stuffed sections hidden by a clean summary.
+      Requires BOTH conditions to avoid penalising short legitimate resumes.
 
-    Signal B: consecutive repeat ratio >= 0.30
-      → catches "React React React" patterns independently
-      → one signal alone is enough here because this pattern
-        essentially never appears in legitimate resumes
+    Signal B: worst SECTION consecutive repeat ratio >= 0.25
+      Catches "React React React" concentrated in one section.
+      Per-section so the experience spam isn't diluted by the summary.
+
+    Signal C: whole-doc consecutive repeat ratio >= 0.30
+      Safety net for resumes with no section headers where
+      spam is spread across the whole document.
     """
-    worst_ttr    = _section_stuffing_score(text)
-    consec_ratio = _consecutive_repeat_ratio(text)
-    has_history  = _has_work_history(text)
+    worst_ttr          = _section_stuffing_score(text)
+    worst_sec_consec   = _worst_section_consecutive_ratio(text)
+    whole_doc_consec   = _consecutive_repeat_ratio(text)
+    has_history        = _has_work_history(text)
 
     print(
         f"[nlp_patch] stuffing_check | "
         f"worst_section_ttr={worst_ttr:.3f} | "
-        f"consec_repeat_ratio={consec_ratio:.3f} | "
+        f"worst_section_consec={worst_sec_consec:.3f} | "
+        f"whole_doc_consec={whole_doc_consec:.3f} | "
         f"has_work_history={has_history}"
     )
 
-    # Signal A: stuffed section + no real history
-    if worst_ttr < 0.20 and not has_history:
-        print("[nlp_patch] stuffing_check → FLAGGED (low section TTR + no history)")
+    # Signal A: low section TTR + no history
+    if worst_ttr < 0.25 and not has_history:
+        print("[nlp_patch] stuffing_check → FLAGGED (Signal A: low TTR + no history)")
         return True
 
-    # Signal B: consecutive repetition (independent — no combo needed)
-    if consec_ratio >= 0.30:
-        print("[nlp_patch] stuffing_check → FLAGGED (consecutive repeat ratio too high)")
+    # Signal B: high consecutive repeat in a specific section
+    if worst_sec_consec >= 0.25:
+        print(f"[nlp_patch] stuffing_check → FLAGGED (Signal B: section consec={worst_sec_consec:.3f})")
+        return True
+
+    # Signal C: whole-doc consecutive repeat fallback
+    if whole_doc_consec >= 0.30:
+        print(f"[nlp_patch] stuffing_check → FLAGGED (Signal C: whole_doc consec={whole_doc_consec:.3f})")
         return True
 
     return False
@@ -668,15 +697,22 @@ def skills_match_score(
     tfidf_sim: float = 0.0,
     sbert_sim: float = 0.0,
 ) -> int:
+    print(f"[nlp_patch] skills_match_score | tfidf={tfidf_sim:.4f} sbert={sbert_sim:.4f}")
+
     if _is_fake_resume(resume_text):
+        print("[nlp_patch] → 0 (fake resume)")
         return 0
 
     gate = _relevance_gate(tfidf_sim, sbert_sim)
+    print(f"[nlp_patch] gate={gate}")
     if gate == "reject":
+        print("[nlp_patch] → 0 (gate rejected)")
         return 0
 
     stuffed = _is_stuffed_resume(resume_text)
+    print(f"[nlp_patch] stuffed={stuffed}")
     cap     = _STUFFED_CAPS["skills"] if stuffed else 2
+    print(f"[nlp_patch] skills_cap={cap}")
 
     h             = _host()
     jd_skills     = extract_skills(job_description)
