@@ -82,43 +82,151 @@ def _relevance_gate(tfidf_sim: float, sbert_sim: float) -> str:
 # ===========================================================================
 
 _SOFT_SKILLS = {
-    "leadership", "communication", "problem solving",
+    # These never count toward skills_match_score — too generic or purely behavioural
+    "leadership", "communication", "problem solving", "customer service",
     "scheduling", "team management", "compliance", "training",
-    "time management", "integrity", "cash handling", "creativity", " Adaptability", 
-    "Collaboration", "Work Ethic", "flexibility", "decision making", 
-    "critical thinking", "Adaptability", "Collaboration", "Work Ethic", "Time Management",
-    "Adaptability", "Teamwork", "Communication", "Problem-solving", "Decision-making", 
-    "Critical Thinking", "Flexibility", "Creativity", "Work Ethic", "Accountability",
-    "Integrity", "Responsibility", "Adaptability", "Teamwork", "Communication",
-    "Problem-solving", "Decision-making", "Critical Thinking", "Flexibility", "Creativity", 
-    "Work Ethic", "Accountability", "Integrity", "Responsibility", "Adaptability",
-    "Teamwork", "Communication", "Problem-solving", "Decision-making", "Critical Thinking", 
-    "Flexibility", "Creativity", "Work Ethic", "Accountability", "Integrity", "Responsibility",
-    "Adaptability", "Teamwork", "Communication", "Problem-solving", "Decision-making", 
-    "Critical Thinking", "Flexibility", "Creativity", "Work Ethic", "Accountability",
-    "Integrity", "Responsibility", "Adaptability", "Teamwork", "Communication",
-    "Problem-solving", "Decision-making", "Critical Thinking", "Flexibility", "Creativity", 
-    "Work Ethic", "Accountability", "Integrity", "Responsibility", "Adaptability",
-    "Teamwork", "Communication", "Problem-solving", "Decision-making", "Critical Thinking", 
-    "Flexibility", "Creativity", "Work Ethic", "Accountability", "Integrity", "Responsibility",
-    "Leadership",
+    "time management", "integrity", "cash handling", "inventory management",
+    "negotiation", "people management", "cross-functional",
 }
 
 _STRONG_EVIDENCE_REQUIRED = {
-    "excel", "word", "access", "accounting", "laravel",
+    "excel", "word", "access", "accounting", "bookkeeping", "laravel",
     "azure", "gcp", "cybersecurity", "fastapi",
     "feature engineering", "marketing", "sales",
+}
+
+# Per-skill specific context validators — stricter than generic _TECH_CONTEXT_KEYWORDS
+# If a skill has an entry here, ONLY these keywords validate it (not the generic set)
+_SKILL_SPECIFIC_CONTEXT = {
+    "accounting": {
+        "accounting", "accounts payable", "accounts receivable",
+        "financial reporting", "gaap", "ifrs", "cpa", "auditor",
+        "bookkeeper", "general ledger", "tax", "financial statement",
+    },
+    "bookkeeping": {
+        "bookkeeping", "accounts payable", "accounts receivable",
+        "general ledger", "financial records", "accounting",
+    },
+    "marketing": {
+        "digital marketing", "seo", "sem", "campaign", "brand strategy",
+        "ecommerce", "lead generation", "marketing automation",
+        "social media marketing", "content marketing", "marketing manager",
+        "marketing coordinator", "marketing specialist",
+    },
+    "sales": {
+        "sales target", "sales pipeline", "sales representative",
+        "account executive", "business development", "lead generation",
+        "crm", "salesforce", "quota", "revenue target", "sales manager",
+    },
+    "excel": {
+        "microsoft", "office suite", "spreadsheet", "google sheets",
+        "pivot table", "vlookup", "excel formula", "data analysis",
+        "financial model", "dashboard", "microsoft excel",
+    },
+    "crm": {
+        "crm", "salesforce", "hubspot", "customer relationship",
+        "pipeline", "sales", "account management", "lead",
+    },
+    "salesforce": {
+        "salesforce", "sfdc", "crm", "sales cloud", "service cloud",
+        "sales", "account management",
+    },
+    "b2b sales": {
+        "b2b", "business to business", "sales", "account", "enterprise",
+        "lead generation", "pipeline", "quota",
+    },
+    "b2c sales": {
+        "b2c", "retail", "consumer", "sales", "customer",
+    },
+    "cold calling": {
+        "cold call", "outbound", "sales", "prospecting", "lead generation",
+    },
+    "pipeline management": {
+        "pipeline", "sales", "crm", "lead", "funnel", "revenue",
+    },
+    "financial modeling": {
+        "financial model", "financial analysis", "forecast", "valuation",
+        "excel", "investment", "dcf", "finance",
+    },
+    "budgeting": {
+        "budget", "financial planning", "cost", "forecast", "expenditure",
+        "finance", "p&l", "profit",
+    },
+    "tax compliance": {
+        "tax", "bir", "vat", "income tax", "tax return", "tax filing",
+        "compliance", "taxation",
+    },
+    "payroll": {
+        "payroll", "salary", "compensation", "employee", "wages",
+        "hr", "human resources", "payslip",
+    },
+    "data entry": {
+        "data entry", "encoding", "database", "records", "spreadsheet",
+        "administrative", "clerical", "data input",
+    },
+    "calendar management": {
+        "calendar", "schedule", "appointment", "meeting", "executive",
+        "administrative", "diary",
+    },
+    "strategic planning": {
+        "strategy", "strategic", "planning", "roadmap", "business plan",
+        "corporate", "vision", "objectives", "goals",
+    },
+    "process improvement": {
+        "process", "improvement", "lean", "six sigma", "efficiency",
+        "optimization", "workflow", "sop", "standard operating",
+    },
+    "project management": {
+        "project", "pmp", "prince2", "agile", "scrum", "waterfall",
+        "timeline", "milestone", "deliverable", "stakeholder",
+    },
+    "operations management": {
+        "operations", "operational", "process", "efficiency", "kpi",
+        "performance", "management", "department", "team",
+    },
+    "performance management": {
+        "performance", "appraisal", "review", "kra", "kpi", "evaluation",
+        "employee performance", "goal setting",
+    },
+    "call center": {
+        "call center", "call centre", "contact center", "bpo",
+        "inbound", "outbound", "voice", "customer service",
+    },
+    "zendesk": {
+        "zendesk", "ticketing", "customer support", "helpdesk",
+        "support ticket", "service desk",
+    },
+    "complaint handling": {
+        "complaint", "issue resolution", "escalation", "customer service",
+        "dispute", "after sales", "customer satisfaction",
+    },
+    "ecommerce": {
+        "ecommerce", "e-commerce", "online store", "shopify",
+        "lazada", "shopee", "woocommerce", "online selling",
+    },
+    "brand management": {
+        "brand", "branding", "brand identity", "brand strategy",
+        "marketing", "brand equity", "positioning",
+    },
+    "market research": {
+        "market research", "consumer research", "survey",
+        "market analysis", "competitor analysis", "insights",
+    },
+    "email marketing": {
+        "email marketing", "email campaign", "mailchimp", "klaviyo",
+        "newsletter", "open rate", "click through",
+    },
 }
 
 _TECH_CONTEXT_KEYWORDS = {
     "microsoft", "office suite", "spreadsheet", "database", "server",
     "cloud", "platform", "framework", "php", "python", "api", "devops",
-    "software", "application", "system", "network", "security", "finance",
-    "bookkeeping", "payroll", "invoice", "retail", "machine learning",
-    "data", "pipeline", "engineering", "backend", "frontend", "developer",
-    "programming", "web", "infrastructure", "deployment", "repository",
-    "digital marketing", "seo", "campaign", "brand", "revenue",
-    "accounts payable", "accounts receivable", "financial", "budget",
+    "software", "application", "system", "network", "security",
+    "machine learning", "pipeline", "engineering", "backend", "frontend",
+    "developer", "programming", "web", "infrastructure", "deployment",
+    "repository", "digital marketing", "seo", "campaign", "brand strategy",
+    "accounts payable", "accounts receivable", "financial reporting",
+    "payroll", "general ledger", "financial statement",
 }
 
 
@@ -367,8 +475,16 @@ def _lemmatise(text: str) -> str:
     return " ".join(tok.lemma_.lower() for tok in doc)
 
 
-def _has_tech_context(sentence: str) -> bool:
+def _has_tech_context(sentence: str, skill: str = None) -> bool:
+    """
+    Returns True if sentence contains a validating context keyword.
+    If skill has a specific context validator, use that instead of the
+    generic _TECH_CONTEXT_KEYWORDS — prevents broad matches like "budget"
+    validating "accounting" or "communications" validating "marketing".
+    """
     lower = sentence.lower()
+    if skill and skill in _SKILL_SPECIFIC_CONTEXT:
+        return any(kw in lower for kw in _SKILL_SPECIFIC_CONTEXT[skill])
     return any(kw in lower for kw in _TECH_CONTEXT_KEYWORDS)
 
 
@@ -453,7 +569,10 @@ def extract_skills(text: str) -> set:
                 continue
             if canonical in _STRONG_EVIDENCE_REQUIRED:
                 containing = [s for s in sentences if _strict_word_match(s, alias)]
-                if not containing or not any(_has_tech_context(s) for s in containing):
+                # Pass skill name so skill-specific context validator is used
+                if not containing or not any(
+                    _has_tech_context(s, skill=canonical) for s in containing
+                ):
                     continue
             matched = True
             break
@@ -481,7 +600,7 @@ def extract_skills(text: str) -> set:
                     if canonical in _STRONG_EVIDENCE_REQUIRED:
                         containing = [s for s in sentences if token in s]
                         if not containing or not any(
-                            _has_tech_context(s) for s in containing
+                            _has_tech_context(s, skill=canonical) for s in containing
                         ):
                             continue
                     found.add(canonical)
