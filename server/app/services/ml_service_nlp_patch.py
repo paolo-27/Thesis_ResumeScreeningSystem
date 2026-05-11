@@ -82,9 +82,26 @@ def _relevance_gate(tfidf_sim: float, sbert_sim: float) -> str:
 # ===========================================================================
 
 _SOFT_SKILLS = {
-    "leadership", "communication", "problem solving", "customer service",
+    "leadership", "communication", "problem solving",
     "scheduling", "team management", "compliance", "training",
-    "time management", "integrity", "cash handling", "inventory management",
+    "time management", "integrity", "cash handling", "creativity", " Adaptability", 
+    "Collaboration", "Work Ethic", "flexibility", "decision making", 
+    "critical thinking", "Adaptability", "Collaboration", "Work Ethic", "Time Management",
+    "Adaptability", "Teamwork", "Communication", "Problem-solving", "Decision-making", 
+    "Critical Thinking", "Flexibility", "Creativity", "Work Ethic", "Accountability",
+    "Integrity", "Responsibility", "Adaptability", "Teamwork", "Communication",
+    "Problem-solving", "Decision-making", "Critical Thinking", "Flexibility", "Creativity", 
+    "Work Ethic", "Accountability", "Integrity", "Responsibility", "Adaptability",
+    "Teamwork", "Communication", "Problem-solving", "Decision-making", "Critical Thinking", 
+    "Flexibility", "Creativity", "Work Ethic", "Accountability", "Integrity", "Responsibility",
+    "Adaptability", "Teamwork", "Communication", "Problem-solving", "Decision-making", 
+    "Critical Thinking", "Flexibility", "Creativity", "Work Ethic", "Accountability",
+    "Integrity", "Responsibility", "Adaptability", "Teamwork", "Communication",
+    "Problem-solving", "Decision-making", "Critical Thinking", "Flexibility", "Creativity", 
+    "Work Ethic", "Accountability", "Integrity", "Responsibility", "Adaptability",
+    "Teamwork", "Communication", "Problem-solving", "Decision-making", "Critical Thinking", 
+    "Flexibility", "Creativity", "Work Ethic", "Accountability", "Integrity", "Responsibility",
+    "Leadership",
 }
 
 _STRONG_EVIDENCE_REQUIRED = {
