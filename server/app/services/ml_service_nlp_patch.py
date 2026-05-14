@@ -836,13 +836,15 @@ def _original_extract_resume_years(resume_text: str) -> float:
             }
         )
 
-        # Only skip when:
-        # 1. education context exists
-        # 2. AND no work signal exists
-        # 3. AND no date range exists
-        if _edu_hit(wide_context):
-            if not segment_has_work_terms and not segment_has_dates:
-                continue
+        # Only skip when ALL three conditions hold:
+        # 1. Education keyword is in the segment itself (not just the lookback window)
+        # 2. AND the segment has no date range of its own
+        # 3. AND the segment has no work-role terms
+        # Using wide_context for the edu check caused the EDUCATION section
+        # (which appears after work history) to bleed into earlier work-date
+        # segments via the lookback window, incorrectly zeroing them out.
+        if _edu_hit(segment_lower) and not segment_has_dates and not segment_has_work_terms:
+            continue
         context = h._segment_context_window(segments, index)
         weight  = h._experience_segment_weight(segment, context=context)
         if weight <= 0:
@@ -1057,8 +1059,17 @@ def education_match_details(
 
     required_level  = extract_degree_level(jd_context    or job_description)
     candidate_level = extract_degree_level(resume_context or resume_text)
-    jd_fields       = extract_fields(jd_context    or job_description)
-    resume_fields   = extract_fields(resume_context or resume_text)
+
+    # Always use the PATCHED extract_fields so the degree-phrase context-window
+    # logic and field-header blocklist are applied correctly.
+    jd_fields     = extract_fields(jd_context or job_description)
+    resume_fields = extract_fields(resume_context or resume_text)
+    # Fallback to full text if context window missed fields
+    # (handles resumes where the education block is a run-on paragraph).
+    if not resume_fields:
+        resume_fields = extract_fields(resume_text)
+    if not jd_fields:
+        jd_fields = extract_fields(job_description)
 
     normalised_jd = h.normalize_field_text(jd_context or job_description)
     related_ok    = any(p in normalised_jd for p in h._RELATED_FIELD_ALLOWANCE_PHRASES)

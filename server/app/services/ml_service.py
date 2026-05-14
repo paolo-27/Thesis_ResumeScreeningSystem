@@ -2211,18 +2211,6 @@ def extract_fields(text):
         for canonical, aliases in FIELD_ALIASES.items():
             if canonical not in found and any(contains_term(normalized_window, alias) for alias in aliases):
                 found.add(canonical)
-    # Fallback direct detection
-    normalized_text = h.normalize_field_text(text)
-
-    for canonical, aliases in h.FIELD_ALIASES.items():
-        if canonical in found:
-            continue
-
-        for alias in aliases:
-            if h.contains_term(normalized_text, alias):
-                found.add(canonical)
-                break
-
     return found
 
 
