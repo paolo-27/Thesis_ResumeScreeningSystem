@@ -1051,6 +1051,13 @@ def education_match_details(
         jd_fields=jd_fields, resume_fields=resume_fields,
         match_type=match_type, related_phrase_ok=related_ok, score=score,
     )
+    
+    # DEBUG: Save the exact text so we can read it on the server
+    try:
+        with open("/home/ferpaolo/Thesis_RSS/server/temp_debug_text.txt", "w", encoding="utf-8") as f:
+            f.write(resume_text)
+    except:
+        pass
 
     if _is_fake_resume(resume_text) or _is_stuffed_resume(resume_text):
         return base_result
