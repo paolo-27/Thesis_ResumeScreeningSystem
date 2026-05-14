@@ -753,14 +753,30 @@ def extract_resume_years(resume_text: str) -> float:
 def _original_extract_resume_years(resume_text: str) -> float:
     h = _host()
 
-    # Education section keywords — segments near these should be zero-weighted
-    _EDU_CONTEXT_TERMS = {
+    # Education section keywords — segments near these should be zero-weighted.
+    # IMPORTANT: Short abbreviations (ms, bs, bsc, msc, b s) are kept in a
+    # separate set and checked with word-boundary regex, NOT plain `in`, to
+    # prevent false-positive matches inside words like "systems", "frameworks",
+    # or "microservices".
+    _EDU_CONTEXT_TERMS_SUBSTR = {
+        # Safe to substring-match — long enough that false-positives are unlikely
         "bachelor", "master", "phd", "doctorate", "doctoral", "degree",
         "graduate", "graduated", "university", "college", "school",
         "gpa", "coursework", "thesis", "information technology",
-        "computer science", "engineering", "b s", "bs", "bsc", "ms", "msc",
-        "associate", "diploma", "certification course",
+        "computer science", "associate", "diploma", "certification course",
     }
+    _EDU_CONTEXT_TERMS_WORDBOUNDARY = {
+        # Must be matched as whole words — too short to substring-match safely
+        "engineering", "bs", "b s", "bsc", "ms", "msc",
+    }
+
+    def _edu_hit(ctx: str) -> bool:
+        if any(t in ctx for t in _EDU_CONTEXT_TERMS_SUBSTR):
+            return True
+        for t in _EDU_CONTEXT_TERMS_WORDBOUNDARY:
+            if re.search(r"(?<![a-z])" + re.escape(t) + r"(?![a-z])", ctx):
+                return True
+        return False
 
     _WORK_OVERRIDE_TERMS = {
         "experience", "work history", "professional experience",
@@ -800,7 +816,7 @@ def _original_extract_resume_years(resume_text: str) -> float:
         wide_context     = " ".join(segments[lookback_start: index + 1]).lower()
 
         # If education keyword in wide context AND no work override → skip
-        if any(term in wide_context for term in _EDU_CONTEXT_TERMS):
+        if _edu_hit(wide_context):
             if not any(term in wide_context for term in _WORK_OVERRIDE_TERMS):
                 continue
 
