@@ -766,6 +766,10 @@ def _original_extract_resume_years(resume_text: str) -> float:
         "experience", "work history", "professional experience",
         "employment", "career", "present", "current", "company",
         "developer", "engineer", "analyst", "manager", "specialist",
+        # Protect explicit year-quantity mentions (e.g. "5+ Years Experience" in header)
+        "years", "yrs", "yr",
+        # Protect job-title lines that may sit near edu context in the lookback window
+        "lead", "senior", "junior", "intern", "coordinator", "director",
     }
 
     explicit_patterns = [
@@ -787,9 +791,12 @@ def _original_extract_resume_years(resume_text: str) -> float:
     segments = h.experience_segments(resume_text)
 
     for index, segment in enumerate(segments):
-        # Wider context window: look back 3 segments instead of 1
-        # Catches education dates separated from their keywords by 2-3 segments
-        lookback_start   = max(0, index - 3)
+        # Look back 1 segment only — a wider window causes the EDUCATION section
+        # (which typically appears at the bottom of the resume) to bleed into
+        # the context check for work-experience date segments above it, wrongly
+        # zeroing out calculated years (e.g. when "Computer Science" or "Bachelor"
+        # appears in the lookback of a "June 2018 – December 2020" work segment).
+        lookback_start   = max(0, index - 1)
         wide_context     = " ".join(segments[lookback_start: index + 1]).lower()
 
         # If education keyword in wide context AND no work override → skip
