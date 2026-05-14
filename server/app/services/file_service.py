@@ -56,6 +56,17 @@ async def extract_text_from_file(file: UploadFile) -> str:
     def replacer(match):
         return match.group(0).replace(" ", "")
     text = re.sub(r"(?<![A-Za-z0-9])(?:[A-Za-z0-9] ){3,}[A-Za-z0-9](?![A-Za-z0-9])", replacer, text)
+    
+    # Recover word spaces if the Canva cleaner accidentally merged words like "ComputerScience"
+    text = re.sub(r"([a-z])([A-Z])", r"\1 \2", text)
+    
+    # Ensure spaces between numbers and letters (e.g. "January2021" -> "January 2021")
+    text = re.sub(r"([0-9])([A-Za-z])", r"\1 \2", text)
+    text = re.sub(r"([A-Za-z])([0-9])", r"\1 \2", text)
+    
+    # Fix detached plus signs so "5 + Years" or "5+Years" becomes "5+ Years"
+    text = re.sub(r"(\+)([A-Za-z])", r"\1 \2", text)
+    text = text.replace(" + ", "+ ")
 
     return text.strip()
 
