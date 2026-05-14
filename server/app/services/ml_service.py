@@ -3160,7 +3160,16 @@ def predict_resume_tier_with_embedding(
             prob_score = prob_score * penalty_factor
             print(f"[ml_service] Weak hard-logic penalty applied → score={prob_score:.4f}")
 
-        prob_score = max(0.0, min(1.0, prob_score))
+        # ── Realistic Score Dampening ──────────────────────────────────────────────
+        # No candidate is a mathematically "perfect" 100% match in reality.
+        # We dampen the final score slightly so the absolute maximum is ~98%.
+        # This prevents setting false expectations for hiring managers.
+        # Scores below 35% are not reduced further.
+        if prob_score >= 0.35:
+            prob_score = prob_score * 0.94
+            prob_score = max(0.0, min(0.94, prob_score))
+        else:
+            prob_score = max(0.0, min(1.0, prob_score))
         # ── End post-model penalty ─────────────────────────────────────────────────
 
         # GYR tier thresholds
