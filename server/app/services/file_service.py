@@ -50,6 +50,13 @@ async def extract_text_from_file(file: UploadFile) -> str:
         except UnicodeDecodeError:
             pass
 
+    # Canva PDFs often export with letter-spacing that PyPDF2 reads as "C o m p u t e r".
+    # This safely collapses sequences of 4+ spaced single characters back into words.
+    import re
+    def replacer(match):
+        return match.group(0).replace(" ", "")
+    text = re.sub(r"(?<![A-Za-z0-9])(?:[A-Za-z0-9] ){3,}[A-Za-z0-9](?![A-Za-z0-9])", replacer, text)
+
     return text.strip()
 
 

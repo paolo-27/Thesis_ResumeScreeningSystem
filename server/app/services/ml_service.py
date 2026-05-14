@@ -1638,12 +1638,18 @@ ROLE_FAMILY_SKILL_HINTS = {
     "marketing_business": {
         "seo", "sem", "google analytics", "lead generation", "marketing automation",
         "crm", "salesforce", "social media", "content marketing", "copywriting",
-        "sales", "sale", "ecommerce", "hospitality sales",
+        "sales", "sale", "ecommerce", "hospitality sales", "google ads", "facebook ads", "email marketing", "content marketing",
+        "social media", "brand management", "market research", "copywriting",
+        "google analytics", "marketing automation", "ecommerce",
+        "influencer marketing", "event marketing",
     },
     "finance_accounting": {
         "financial reporting", "gaap", "ifrs", "tax", "excel", "quickbooks",
         "bookkeeping", "budgeting", "forecasting", "billing",
-        "financial statement", "cash flow", "accounts payable", "accounts receivable",
+        "financial statement", "cash flow", "accounts payable", "accounts receivable","financial modeling", "financial reporting", "budgeting", "forecasting",
+        "gaap", "ifrs", "cpa", "quickbooks", "xero", "tax compliance",
+        "internal audit", "risk management", "treasury", "payroll",
+        "cost accounting", "investment analysis", "banking",
     },
     "operations_product": {
         "agile", "scrum", "roadmap", "stakeholder management", "jira",
