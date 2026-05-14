@@ -2013,7 +2013,9 @@ def experience_segments(text):
     raw = "" if pd.isna(text) else str(text).lower()
     raw = raw.replace("'", "'")
     raw = raw.replace("\u2013", "-").replace("\u2014", "-")
-    raw = raw.replace("\u2022", "\n").replace("|", "\n")
+    raw = raw.replace("\u2022", "\n")
+    raw = raw.replace("|", "\n")
+    raw = raw.replace("*", "\n")
 
     # Restore boundaries before experience headers and common date ranges.
     raw = re.sub(
@@ -2209,6 +2211,17 @@ def extract_fields(text):
         for canonical, aliases in FIELD_ALIASES.items():
             if canonical not in found and any(contains_term(normalized_window, alias) for alias in aliases):
                 found.add(canonical)
+    # Fallback direct detection
+    normalized_text = h.normalize_field_text(text)
+
+    for canonical, aliases in h.FIELD_ALIASES.items():
+        if canonical in found:
+            continue
+
+        for alias in aliases:
+            if h.contains_term(normalized_text, alias):
+                found.add(canonical)
+                break
 
     return found
 

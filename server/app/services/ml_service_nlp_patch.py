@@ -714,8 +714,8 @@ def extract_fields(text: str) -> set:
 
     for segment in re.split(r"[\n\r]{1,2}", text):
         for m in _DEGREE_CONTEXT_RE.finditer(segment):
-            tail = segment[m.end(): m.end() + 150]
-            tail = re.split(r"[,|;\n]", tail)[0].strip()
+            tail = segment[m.end():]
+            tail = re.split(r"[,|;]", tail)[0].strip()
             if not tail or tail.lower().strip() in _FIELD_HEADER_BLOCKLIST:
                 continue
             normalised_tail = h.normalize_field_text(tail)
@@ -816,10 +816,33 @@ def _original_extract_resume_years(resume_text: str) -> float:
         wide_context     = " ".join(segments[lookback_start: index + 1]).lower()
 
         # If education keyword in wide context AND no work override → skip
-        if _edu_hit(wide_context):
-            if not any(term in wide_context for term in _WORK_OVERRIDE_TERMS):
-                continue
+        # Skip ONLY if this segment actually looks educational
+        segment_lower = segment.lower()
 
+        segment_has_dates = bool(re.search(r"(19|20)\d{2}", segment_lower))
+        segment_has_work_terms = any(
+            term in segment_lower
+            for term in {
+                "developer",
+                "engineer",
+                "analyst",
+                "manager",
+                "specialist",
+                "experience",
+                "employment",
+                "present",
+                "current",
+                "worked",
+            }
+        )
+
+        # Only skip when:
+        # 1. education context exists
+        # 2. AND no work signal exists
+        # 3. AND no date range exists
+        if _edu_hit(wide_context):
+            if not segment_has_work_terms and not segment_has_dates:
+                continue
         context = h._segment_context_window(segments, index)
         weight  = h._experience_segment_weight(segment, context=context)
         if weight <= 0:
