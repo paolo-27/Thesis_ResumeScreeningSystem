@@ -697,10 +697,10 @@ def _original_extract_degree_level(text: str) -> str:
 # ===========================================================================
 
 _DEGREE_CONTEXT_RE = re.compile(
-    r"(?:bachelor(?:s|\'s)?(?:\s+of(?:\s+science)?(?:\s+in)?)?|"
+    r"\b(?:bachelor(?:s|\'s)?(?:\s+of(?:\s+science)?(?:\s+in)?)?|"
     r"master(?:s|\'s)?(?:\s+of(?:\s+science)?(?:\s+in)?)?|"
     r"bs|bsc|ba|ms|msc|ma|mba|phd|ph\s*d|doctorate(?:\s+in)?|"
-    r"bachelor|master|degree\s+in|studied)\s*(?:in|of|:)?\s*",
+    r"bachelor|master|degree\s+in|studied)\b\s*(?:in\b|of\b|:)?\s*",
     re.IGNORECASE,
 )
 
