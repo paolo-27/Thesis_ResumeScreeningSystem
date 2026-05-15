@@ -29,14 +29,14 @@ export default function RejectedCandidates({ jobId, candidates, onResumeSelect, 
   };
 
   const getRankBadge = (candidate: Candidate) => {
-    if (candidate.gyr_tier === 'Green') return { label: 'Top 30%', color: 'bg-emerald-100 text-emerald-700' };
-    if (candidate.gyr_tier === 'Yellow') return { label: 'Middle 50%', color: 'bg-yellow-100 text-yellow-700' };
-    if (candidate.gyr_tier === 'Red') return { label: 'Bottom 20%', color: 'bg-red-100 text-red-700' };
+    if (candidate.gyr_tier === 'Green') return { label: 'Top', color: 'bg-emerald-100 text-emerald-700' };
+    if (candidate.gyr_tier === 'Yellow') return { label: 'Middle', color: 'bg-yellow-100 text-yellow-700' };
+    if (candidate.gyr_tier === 'Red') return { label: 'Bottom', color: 'bg-red-100 text-red-700' };
 
     const pct = (candidate.probability_score || 0) * 100;
-    if (pct >= 70) return { label: 'Top 30%', color: 'bg-emerald-100 text-emerald-700' };
-    if (pct >= 40) return { label: 'Middle 50%', color: 'bg-yellow-100 text-yellow-700' };
-    return { label: 'Bottom 20%', color: 'bg-red-100 text-red-700' };
+    if (pct >= 70) return { label: 'Top', color: 'bg-emerald-100 text-emerald-700' };
+    if (pct >= 40) return { label: 'Middle', color: 'bg-yellow-100 text-yellow-700' };
+    return { label: 'Bottom', color: 'bg-red-100 text-red-700' };
   };
 
   const formatDate = (dateString: string) => {

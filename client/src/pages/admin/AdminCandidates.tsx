@@ -331,21 +331,21 @@ export default function AdminCandidates() {
                                     <div className="flex items-center justify-between text-sm">
                                         <div className="flex items-center gap-2">
                                             <div className="w-3 h-3 rounded-full bg-emerald-500"></div>
-                                            <span className="text-gray-600">Top 30%</span>
+                                            <span className="text-gray-600">Top</span>
                                         </div>
                                         <span className="text-gray-900">{greenCount}</span>
                                     </div>
                                     <div className="flex items-center justify-between text-sm">
                                         <div className="flex items-center gap-2">
                                             <div className="w-3 h-3 rounded-full bg-yellow-500"></div>
-                                            <span className="text-gray-600">Middle 50%</span>
+                                            <span className="text-gray-600">Middle</span>
                                         </div>
                                         <span className="text-gray-900">{yellowCount}</span>
                                     </div>
                                     <div className="flex items-center justify-between text-sm">
                                         <div className="flex items-center gap-2">
                                             <div className="w-3 h-3 rounded-full bg-red-500"></div>
-                                            <span className="text-gray-600">Bottom 20%</span>
+                                            <span className="text-gray-600">Bottom</span>
                                         </div>
                                         <span className="text-gray-900">{redCount}</span>
                                     </div>
