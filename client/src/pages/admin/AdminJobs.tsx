@@ -135,6 +135,27 @@ export default function AdminJobs() {
               </div>
             </div>
 
+            {/* Shortlist Quota */}
+            <div className="space-y-2">
+              <Label htmlFor="shortlistQuota" className="text-gray-700 flex items-center gap-2">
+                <Users className="w-4 h-4 text-emerald-600" />
+                Shortlist Quota
+                <span className="text-xs text-gray-400 font-normal ml-1">(optional)</span>
+              </Label>
+              <Input
+                id="shortlistQuota"
+                type="number"
+                min="1"
+                placeholder="e.g., 10 — leave blank for no limit"
+                value={shortlistQuota}
+                onChange={(e) => setShortlistQuota(e.target.value)}
+                className="border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
+              />
+              <p className="text-xs text-gray-400">
+                Set a maximum number of candidates that can be shortlisted for this job. A notification will appear once the quota is reached.
+              </p>
+            </div>
+
             <div className="space-y-2">
               <Label htmlFor="jobDescription" className="text-gray-700">
                 Job Description <span className="text-red-500">*</span>
@@ -165,26 +186,6 @@ export default function AdminJobs() {
               </div>
             </Card>
 
-            {/* Shortlist Quota */}
-            <div className="space-y-2">
-              <Label htmlFor="shortlistQuota" className="text-gray-700 flex items-center gap-2">
-                <Users className="w-4 h-4 text-emerald-600" />
-                Shortlist Quota
-                <span className="text-xs text-gray-400 font-normal ml-1">(optional)</span>
-              </Label>
-              <Input
-                id="shortlistQuota"
-                type="number"
-                min="1"
-                placeholder="e.g., 10 — leave blank for no limit"
-                value={shortlistQuota}
-                onChange={(e) => setShortlistQuota(e.target.value)}
-                className="border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
-              />
-              <p className="text-xs text-gray-400">
-                Set a maximum number of candidates that can be shortlisted for this job. A notification will appear once the quota is reached.
-              </p>
-            </div>
 
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <Button
