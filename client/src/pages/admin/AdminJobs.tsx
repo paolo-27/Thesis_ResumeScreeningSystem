@@ -4,7 +4,7 @@ import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { Textarea } from '../../components/ui/textarea';
-import { AlertCircle, CheckCircle2, Briefcase, ArrowLeft } from 'lucide-react';
+import { AlertCircle, CheckCircle2, Briefcase, ArrowLeft, Users } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 import api from '../../lib/axios';
@@ -16,6 +16,7 @@ export default function AdminJobs() {
   const [department, setDepartment] = useState('');
   const [location, setLocation] = useState('');
   const [employmentType, setEmploymentType] = useState('');
+  const [shortlistQuota, setShortlistQuota] = useState<string>('');
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -23,6 +24,7 @@ export default function AdminJobs() {
     setIsSubmitting(true);
 
     try {
+      const quotaValue = shortlistQuota.trim() !== '' ? parseInt(shortlistQuota, 10) : null;
       await api.post('/api/jobs/', {
         title: jobTitle,
         department,
@@ -30,7 +32,8 @@ export default function AdminJobs() {
         type: employmentType,
         description: jobDescription,
         status: 'Active',
-        postedDate: new Date().toISOString()
+        postedDate: new Date().toISOString(),
+        shortlist_quota: quotaValue,
       });
 
       toast.success(`Job posting "${jobTitle}" has been published successfully!`);
@@ -162,6 +165,27 @@ export default function AdminJobs() {
               </div>
             </Card>
 
+            {/* Shortlist Quota */}
+            <div className="space-y-2">
+              <Label htmlFor="shortlistQuota" className="text-gray-700 flex items-center gap-2">
+                <Users className="w-4 h-4 text-emerald-600" />
+                Shortlist Quota
+                <span className="text-xs text-gray-400 font-normal ml-1">(optional)</span>
+              </Label>
+              <Input
+                id="shortlistQuota"
+                type="number"
+                min="1"
+                placeholder="e.g., 10 — leave blank for no limit"
+                value={shortlistQuota}
+                onChange={(e) => setShortlistQuota(e.target.value)}
+                className="border-gray-200 focus:border-emerald-500 focus:ring-emerald-500"
+              />
+              <p className="text-xs text-gray-400">
+                Set a maximum number of candidates that can be shortlisted for this job. A notification will appear once the quota is reached.
+              </p>
+            </div>
+
             <div className="flex flex-col sm:flex-row gap-4 pt-4">
               <Button
                 type="submit"
@@ -180,6 +204,7 @@ export default function AdminJobs() {
                   setDepartment('');
                   setLocation('');
                   setEmploymentType('');
+                  setShortlistQuota('');
                 }}
                 disabled={isSubmitting}
               >
