@@ -81,6 +81,10 @@ class JobPosting(Base):
     deleted_at          = Column(String, nullable=True)
     deleted_by_id       = Column(String, ForeignKey("users.id"), nullable=True)
 
+    # Maximum number of candidates that can be shortlisted for this job.
+    # None means no limit is set.
+    shortlist_quota     = Column(Integer, nullable=True, default=None)
+
     candidates = relationship("Candidate", back_populates="job")
 
 

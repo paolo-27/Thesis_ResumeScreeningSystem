@@ -3,22 +3,27 @@ import { Card } from '../../components/ui/card';
 import { Button } from '../../components/ui/button';
 import { Input } from '../../components/ui/input';
 import { Badge } from '../../components/ui/badge';
-import { ArrowLeft, Search, FileText, Download, CheckCircle2, ArrowUpRight, Mail, Calendar } from 'lucide-react';
-import type { Candidate } from "../../types";
+import { ArrowLeft, Search, FileText, CheckCircle2, ArrowUpRight, Calendar, AlertTriangle } from 'lucide-react';
+import type { Candidate, JobPosting } from "../../types";
 
 interface ShortlistedCandidatesProps {
   jobId: string;
+  job?: JobPosting;
   candidates: Candidate[];
   onResumeSelect: (resumeId: string) => void;
   onBack: () => void;
 }
 
-export default function ShortlistedCandidates({ jobId, candidates, onResumeSelect, onBack }: ShortlistedCandidatesProps) {
+export default function ShortlistedCandidates({ jobId, job, candidates, onResumeSelect, onBack }: ShortlistedCandidatesProps) {
   const [searchQuery, setSearchQuery] = useState('');
 
   const filteredCandidates = candidates.filter(candidate =>
     candidate.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
+
+  const quota = job?.shortlist_quota ?? null;
+  const quotaReached = quota !== null && candidates.length >= quota;
+  const quotaPercent = quota !== null ? Math.min(Math.round((candidates.length / quota) * 100), 100) : 0;
 
   const getScoreBadgeColor = (score: number) => {
     const pct = score * 100;
@@ -78,6 +83,21 @@ export default function ShortlistedCandidates({ jobId, candidates, onResumeSelec
         </div>
       </div>
 
+      {/* Quota Reached Banner */}
+      {quotaReached && (
+        <div className="mb-6 flex items-start gap-4 bg-amber-50 border border-amber-300 rounded-xl p-4 shadow-sm">
+          <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+          </div>
+          <div className="flex-1">
+            <h4 className="text-amber-800 font-bold mb-0.5">Maximum Shortlist Quota Reached</h4>
+            <p className="text-sm text-amber-700">
+              You have shortlisted <strong>{candidates.length}</strong> out of <strong>{quota}</strong> allowed candidates for this job. No further shortlisting is required unless you update the quota.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Summary Card */}
       <Card className="p-6 bg-blue-50 border-blue-200 border mb-6">
         <div className="flex items-center justify-between">
@@ -96,9 +116,37 @@ export default function ShortlistedCandidates({ jobId, candidates, onResumeSelec
           </div>
           <div className="text-right">
             <p className="text-sm text-gray-500 mb-1 font-medium">Total Shortlisted</p>
-            <p className="text-3xl font-bold text-gray-900">{filteredCandidates.length}</p>
+            <p className="text-3xl font-bold text-gray-900">{candidates.length}</p>
+            {quota !== null && (
+              <p className={`text-xs mt-1 font-semibold ${
+                quotaReached ? 'text-amber-600' : 'text-gray-400'
+              }`}>
+                {quotaReached
+                  ? `Quota reached (${quota})`
+                  : `${candidates.length} of ${quota} quota used`}
+              </p>
+            )}
           </div>
         </div>
+        {/* Quota progress bar */}
+        {quota !== null && (
+          <div className="mt-4 space-y-1">
+            <div className="flex justify-between text-xs text-gray-500">
+              <span>Quota Progress</span>
+              <span className={quotaReached ? 'text-amber-600 font-bold' : 'text-gray-600'}>
+                {quotaPercent}%
+              </span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
+              <div
+                className={`h-2 rounded-full transition-all duration-500 ${
+                  quotaReached ? 'bg-amber-500' : 'bg-blue-500'
+                }`}
+                style={{ width: `${quotaPercent}%` }}
+              />
+            </div>
+          </div>
+        )}
       </Card>
 
       {/* Candidate Grid */}

@@ -16,6 +16,7 @@ class JobPostingBase(BaseModel):
     is_deleted: Optional[bool] = False
     deleted_at: Optional[str] = None
     deleted_by_id: Optional[str] = None
+    shortlist_quota: Optional[int] = None
 
 class JobPostingCreate(JobPostingBase):
     pass

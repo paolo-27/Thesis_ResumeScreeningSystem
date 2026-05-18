@@ -197,6 +197,7 @@ export default function AdminCandidates() {
             return (
                 <ShortlistedCandidates
                     jobId={selectedJobId}
+                    job={job}
                     candidates={jobCandidates.filter(c => c.status === 'Shortlisted')}
                     onResumeSelect={handleResumeSelect}
                     onBack={handleBack}

@@ -10,6 +10,7 @@ import {
   AlertCircle,
   CheckCircle2,
   XCircle,
+  AlertTriangle,
 } from "lucide-react";
 import { Progress } from "../../components/ui/progress";
 import type { Candidate, JobPosting } from "../../types";
@@ -80,8 +81,26 @@ export default function RankingSystem({
   const shortlistedCount = candidates.filter(c => c.status === 'Shortlisted').length;
   const rejectedCount = candidates.filter(c => c.status === 'Rejected').length;
 
+  const quota = job?.shortlist_quota ?? null;
+  const quotaReached = quota !== null && shortlistedCount >= quota;
+  const quotaPercent = quota !== null ? Math.min(Math.round((shortlistedCount / quota) * 100), 100) : 0;
+
   return (
     <div className="p-8 max-w-7xl mx-auto">
+      {/* Quota Reached Banner */}
+      {quotaReached && (
+        <div className="mb-6 flex items-start gap-4 bg-amber-50 border border-amber-300 rounded-xl p-4 shadow-sm animate-pulse-once">
+          <div className="flex-shrink-0 w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+          </div>
+          <div className="flex-1">
+            <h4 className="text-amber-800 font-bold mb-0.5">Maximum Shortlist Quota Reached</h4>
+            <p className="text-sm text-amber-700">
+              You have shortlisted <strong>{shortlistedCount}</strong> out of <strong>{quota}</strong> candidates allowed for <strong>{job?.title}</strong>. No further shortlisting is required unless you update the quota.
+            </p>
+          </div>
+        </div>
+      )}
       {/* Header */}
       <div className="mb-8">
         <Button
@@ -324,17 +343,37 @@ export default function RankingSystem({
                 <p className="text-3xl">{shortlistedCount}</p>
               </div>
             </div>
-            <p className="text-sm text-blue-100">
-              Candidates selected for next round
-            </p>
+            {/* Quota progress inside card header */}
+            {quota !== null && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-blue-100">Quota</span>
+                  <span className={quotaReached ? 'text-amber-300 font-bold' : 'text-white'}>
+                    {shortlistedCount} / {quota}
+                  </span>
+                </div>
+                <Progress
+                  value={quotaPercent}
+                  className={`h-2 ${quotaReached ? 'bg-amber-300' : 'bg-blue-300'}`}
+                />
+              </div>
+            )}
+            {quota === null && (
+              <p className="text-sm text-blue-100">Candidates selected for next round</p>
+            )}
           </div>
           <div className="p-6 bg-white flex flex-col flex-1">
-            <h4 className="text-gray-900 mb-2">
-              Shortlisted Candidates
-            </h4>
-            <p className="text-sm text-gray-600 mb-4 flex-1">
-              Review candidates you've marked as potential hires
-            </p>
+            <h4 className="text-gray-900 mb-2">Shortlisted Candidates</h4>
+            {quotaReached ? (
+              <p className="text-sm text-amber-600 font-medium mb-4 flex-1 flex items-center gap-1">
+                <AlertTriangle className="w-4 h-4 flex-shrink-0" />
+                Quota of {quota} has been reached
+              </p>
+            ) : (
+              <p className="text-sm text-gray-600 mb-4 flex-1">
+                Review candidates you've marked as potential hires
+              </p>
+            )}
             <Button
               onClick={() => onViewSelect("shortlisted")}
               className="w-full bg-blue-600 hover:bg-blue-700 group-hover:bg-blue-700 text-white"

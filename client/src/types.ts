@@ -48,6 +48,7 @@ export interface JobPosting {
     postedDate: string;
     description: string;
     requirements?: string[];
+    shortlist_quota?: number;
 }
 
 export type GYRTier = 'Green' | 'Yellow' | 'Red';
