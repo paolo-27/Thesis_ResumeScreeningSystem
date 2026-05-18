@@ -261,7 +261,7 @@ export default function AdminJobs() {
                 </div>
                 <div className="mt-4 p-3 rounded-lg bg-gray-50 border border-gray-200">
                   <p className="text-xs text-gray-500 text-center">
-                    A complete job description with all 6 elements gives the AI the full picture — leading to sharper rankings and fewer manual reviews.
+                    A complete job description with all 6 elements gives the AI the full picture leading to sharper rankings and fewer manual reviews.
                   </p>
                 </div>
                 <div className="mt-4 flex justify-end">
