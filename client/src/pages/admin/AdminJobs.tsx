@@ -204,7 +204,7 @@ export default function AdminJobs() {
                     </div>
                     <div>
                       <p className="font-semibold text-gray-900 mb-0.5">1. Keyword Relevance <span className="text-xs font-normal text-emerald-600 ml-1">(TF-IDF Match)</span></p>
-                      <p className="text-sm text-gray-600">The AI scans your description for job-specific terms that also appear in the candidate's resume. <strong>If the description is too vague</strong> (e.g., "handles various tasks"), the system cannot find matching keywords and will score all resumes equally low — making it harder to separate strong from weak candidates.</p>
+                      <p className="text-sm text-gray-600">The AI scans your description for job-specific terms that also appear in the candidate's resume. <strong>If the description is too vague</strong> (e.g., "handles various tasks"), the system cannot find matching keywords and will score all resumes equally low making it harder to separate strong from weak candidates.</p>
                       <p className="text-xs text-emerald-700 mt-1.5 font-medium">✦ Tip: Use specific job titles, tools, and action verbs (e.g., "manage inventory using SAP", "develop REST APIs in Python").</p>
                     </div>
                   </div>
@@ -223,8 +223,8 @@ export default function AdminJobs() {
                       <Layers className="w-4 h-4 text-white" />
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900 mb-0.5">3. Skills Relevance <span className="text-xs font-normal text-violet-600 ml-1">(Scored 0–2)</span></p>
-                      <p className="text-sm text-gray-600">The AI counts how many required skills from your description appear in the candidate's resume. <strong>If no specific skills are listed</strong>, this score defaults to zero for all candidates — removing one of the strongest signals for shortlisting.</p>
+                      <p className="font-semibold text-gray-900 mb-0.5">3. Skills Relevance <span className="text-xs font-normal text-violet-600 ml-1"></span></p>
+                      <p className="text-sm text-gray-600">The AI counts how many required skills from your description appear in the candidate's resume. <strong>If no specific skills are listed</strong>, this score defaults to zero for all candidates removing one of the strongest signals for shortlisting.</p>
                       <p className="text-xs text-violet-700 mt-1.5 font-medium">✦ Tip: List at least 4–6 concrete skills (e.g., "Proficient in Excel, QuickBooks, and financial reporting").</p>
                     </div>
                   </div>
@@ -233,8 +233,8 @@ export default function AdminJobs() {
                       <Clock className="w-4 h-4 text-white" />
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900 mb-0.5">4. Years of Experience <span className="text-xs font-normal text-amber-600 ml-1">(Scored 0–3)</span></p>
-                      <p className="text-sm text-gray-600">The AI extracts the minimum years of experience required and compares it to the candidate's resume. <strong>If no experience requirement is mentioned</strong>, every candidate — from fresh graduate to senior — receives the same score on this predictor.</p>
+                      <p className="font-semibold text-gray-900 mb-0.5">4. Years of Experience <span className="text-xs font-normal text-amber-600 ml-1"></span></p>
+                      <p className="text-sm text-gray-600">The AI extracts the minimum years of experience required and compares it to the candidate's resume. <strong>If no experience requirement is mentioned</strong>, every candidate from fresh graduate to senior receives the same score on this predictor.</p>
                       <p className="text-xs text-amber-700 mt-1.5 font-medium">✦ Tip: State clearly, e.g., "At least 2 years of experience in sales" or "Minimum 1 year in a supervisory role".</p>
                     </div>
                   </div>
@@ -243,7 +243,7 @@ export default function AdminJobs() {
                       <GraduationCap className="w-4 h-4 text-white" />
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900 mb-0.5">5. Education Match <span className="text-xs font-normal text-rose-600 ml-1">(Scored 0–2)</span></p>
+                      <p className="font-semibold text-gray-900 mb-0.5">5. Education Match <span className="text-xs font-normal text-rose-600 ml-1"></span></p>
                       <p className="text-sm text-gray-600">The AI checks whether the candidate's degree or field of study matches what's required. <strong>Without a clear education requirement</strong>, candidates with unrelated degrees will not be penalized and may rank equally with ideal candidates.</p>
                       <p className="text-xs text-rose-700 mt-1.5 font-medium">✦ Tip: Include the minimum degree and preferred field (e.g., "Bachelor's degree in Accounting, Finance, or a related field").</p>
                     </div>
@@ -253,7 +253,7 @@ export default function AdminJobs() {
                       <BookOpen className="w-4 h-4 text-white" />
                     </div>
                     <div>
-                      <p className="font-semibold text-gray-900 mb-0.5">6. Domain Alignment <span className="text-xs font-normal text-teal-600 ml-1">(Scored 0–1)</span></p>
+                      <p className="font-semibold text-gray-900 mb-0.5">6. Domain Alignment <span className="text-xs font-normal text-teal-600 ml-1"></span></p>
                       <p className="text-sm text-gray-600">The AI determines whether the candidate's background belongs to the same domain as the job (e.g., Tech, Finance, Healthcare). <strong>Without domain context</strong>, candidates from entirely unrelated fields may pass undetected.</p>
                       <p className="text-xs text-teal-700 mt-1.5 font-medium">✦ Tip: Mention the industry or function (e.g., "role within our IT department", "position in our Finance &amp; Accounting team").</p>
                     </div>
